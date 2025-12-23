@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from .database import engine, Base, SessionLocal
 from .config import settings
+from .bootstrap_admin import ensure_admin_exists
 from .routers import (
     auth_routes,
     users_routes,
@@ -20,10 +21,25 @@ from .routers import (
 )
 from .services.payouts_service import gerar_payouts_periodo
 
+
+# cria tabelas
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
+
+# 🔐 BOOTSTRAP DO ADMIN (APENAS ADICIONADO)
+@app.on_event("startup")
+def startup():
+    db = SessionLocal()
+    try:
+        ensure_admin_exists(db)
+        db.commit()
+    finally:
+        db.close()
+
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # ajuste depois
@@ -32,6 +48,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# routers
 app.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
 app.include_router(users_routes.router, prefix="/users", tags=["Users"])
 app.include_router(products_routes.router, prefix="/products", tags=["Products"])
@@ -41,9 +59,12 @@ app.include_router(uploads_routes.router, prefix="/uploads", tags=["Uploads"])
 app.include_router(commissions_routes.router, prefix="/commissions", tags=["Commissions"])
 app.include_router(payments_routes.router, prefix="/payments", tags=["Payments"])
 
+
 # servir media (imagens)
 app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
 
+
+# scheduler de payouts
 scheduler = BackgroundScheduler()
 
 def job_payouts():
@@ -55,10 +76,3 @@ def job_payouts():
         db.commit()
     finally:
         db.close()
-
-scheduler.add_job(job_payouts, "interval", days=30, id="monthly_payouts", replace_existing=True)
-scheduler.start()
-
-@app.get("/")
-def root():
-    return {"message": "ARCA e-commerce backend online"}
