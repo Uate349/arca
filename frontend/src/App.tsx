@@ -7,7 +7,12 @@ import CartPage from './pages/CartPage'
 import CheckoutPage from './pages/CheckoutPage'
 import AccountPage from './pages/AccountPage'
 import ConsultantDashboardPage from './pages/ConsultantDashboardPage'
-import AdminDashboardPage from './pages/AdminDashboardPage'
+
+// ✅ Admin (novo caminho + novas páginas)
+import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminOrdersPage from './pages/admin/AdminOrdersPage'
+import AdminProductsPage from './pages/admin/AdminProductsPage'
+import AdminPayoutsPage from './pages/admin/AdminPayoutsPage'
 
 export default function App() {
   return (
@@ -22,7 +27,12 @@ export default function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/consultor" element={<ConsultantDashboardPage />} />
+
+          {/* ✅ Admin */}
           <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/admin/products" element={<AdminProductsPage />} />
+          <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
         </Routes>
       </main>
     </div>
