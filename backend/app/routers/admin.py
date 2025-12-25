@@ -10,6 +10,18 @@ from ..models import User, UserRole
 # ⚠️ Ajusta este import se o teu model tiver outro nome:
 from ..models import Product
 
+# ✅ Imports "safe" para não quebrar caso ainda não existam
+try:
+    from ..models import Order  # se existir no teu models.py
+except Exception:
+    Order = None  # type: ignore
+
+try:
+    from ..models import Payout  # se existir no teu models.py
+except Exception:
+    Payout = None  # type: ignore
+
+
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
@@ -72,6 +84,19 @@ def set_user_role(
 # -------------------------
 # PRODUCTS
 # -------------------------
+
+# ✅ A) LISTAR PRODUTOS (Admin vê todos, ativos e inativos)
+@router.get("/products")
+def admin_list_products(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+):
+    q = db.query(Product)
+    if hasattr(Product, "created_at"):
+        q = q.order_by(Product.created_at.desc())
+    return q.all()
+
+
 @router.post("/products", status_code=status.HTTP_201_CREATED)
 def admin_create_product(
     payload: Dict[str, Any],
@@ -148,3 +173,43 @@ def admin_deactivate_product(
     db.commit()
     db.refresh(product)
     return {"id": str(product.id), "active": product.active}
+
+
+# -------------------------
+# B) PAYOUTS (Admin histórico)
+# -------------------------
+@router.get("/payouts")
+def admin_list_payouts(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+):
+    if Payout is None:
+        raise HTTPException(
+            status_code=501,
+            detail="Model Payout não existe/import falhou. Diz-me o nome correto do model (ex: Withdrawal, Cashout, PayoutRequest)."
+        )
+
+    q = db.query(Payout)
+    if hasattr(Payout, "created_at"):
+        q = q.order_by(Payout.created_at.desc())
+    return q.all()
+
+
+# -------------------------
+# C) ORDERS (Admin pedidos)
+# -------------------------
+@router.get("/orders")
+def admin_list_orders(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+):
+    if Order is None:
+        raise HTTPException(
+            status_code=501,
+            detail="Model Order não existe/import falhou. Diz-me o nome correto do model (ex: Purchase, Pedido, OrderModel)."
+        )
+
+    q = db.query(Order)
+    if hasattr(Order, "created_at"):
+        q = q.order_by(Order.created_at.desc())
+    return q.all()
