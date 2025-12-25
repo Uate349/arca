@@ -5,11 +5,16 @@ import { useAuth } from '../store/authStore'
 import { createOrder } from '../api/ordersApi'
 
 export default function CheckoutPage() {
-  const { items, total, clearCart } = useCart()
+  const { items, clearCart } = useCart()
   const { token } = useAuth()
   const [pointsToUse, setPointsToUse] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+
+  const totalCalc = items.reduce(
+    (sum, i) => sum + Number(i.price) * Number(i.quantity),
+    0
+  )
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -46,16 +51,19 @@ export default function CheckoutPage() {
           {items.map((i) => (
             <div key={i.product_id} className="flex justify-between text-sm">
               <span>{i.name} (x{i.quantity})</span>
-              <span>{(i.price * i.quantity).toFixed(2)} MT</span>
+              <span>{(Number(i.price) * Number(i.quantity)).toFixed(2)} MT</span>
             </div>
           ))}
           <div className="flex justify-between font-semibold border-t border-slate-800 pt-2">
             <span>Total</span>
-            <span className="text-emerald-400">{total.toFixed(2)} MT</span>
+            <span className="text-emerald-400">{totalCalc.toFixed(2)} MT</span>
           </div>
         </div>
+
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Pontos a usar (máx 30% do valor)</label>
+          <label className="text-xs text-slate-400 block mb-1">
+            Pontos a usar (máx 30% do valor)
+          </label>
           <input
             type="number"
             min={0}
@@ -64,7 +72,9 @@ export default function CheckoutPage() {
             onChange={(e) => setPointsToUse(Number(e.target.value))}
           />
         </div>
+
         {error && <div className="text-xs text-red-400">{error}</div>}
+
         <button
           type="submit"
           className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-900 text-sm font-semibold hover:bg-emerald-400"
