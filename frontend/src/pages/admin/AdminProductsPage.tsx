@@ -12,7 +12,7 @@ type AdminProduct = {
 }
 
 type EditForm = {
-  id: string
+  id: string | null // ✅ agora pode ser null para "Novo produto"
   name: string
   price: string
   stock: string
@@ -79,6 +79,19 @@ export default function AdminProductsPage() {
     })
   }, [products, q])
 
+  // ✅ NOVO: abrir modal para criar produto
+  function openCreate() {
+    setForm({
+      id: null,
+      name: '',
+      price: '0.00',
+      stock: '0',
+      active: true,
+      image_url: '',
+    })
+    setEditOpen(true)
+  }
+
   function openEdit(p: AdminProduct) {
     setForm({
       id: p.id,
@@ -123,6 +136,7 @@ export default function AdminProductsPage() {
     }
   }
 
+  // ✅ agora serve para EDITAR e CRIAR
   async function saveEdit() {
     if (!token || !form) return
     try {
@@ -137,20 +151,40 @@ export default function AdminProductsPage() {
         image_url: form.image_url?.trim() || null,
       }
 
-      const res = await fetch(`${apiBase}/admin/products/${form.id}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error('Falha ao salvar edição')
+      const isCreate = !form.id
 
-      const updated = await res.json()
-      const u: AdminProduct = updated.product ?? updated
+      const res = await fetch(
+        isCreate ? `${apiBase}/admin/products` : `${apiBase}/admin/products/${form.id}`,
+        {
+          method: isCreate ? 'POST' : 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      )
 
-      setProducts((prev) => prev.map((x) => (x.id === form.id ? { ...x, ...u } : x)))
+      if (!res.ok) {
+        // tenta mostrar mensagem real do backend (se houver)
+        let msg = isCreate ? 'Falha ao criar produto' : 'Falha ao salvar edição'
+        try {
+          const j = await res.json()
+          msg = j?.detail || j?.message || msg
+        } catch {}
+        throw new Error(msg)
+      }
+
+      const out = await res.json()
+      const u: AdminProduct = out.product ?? out
+
+      if (isCreate) {
+        // adiciona na lista (ou recarrega, se preferires)
+        setProducts((prev) => [u, ...prev])
+      } else {
+        setProducts((prev) => prev.map((x) => (x.id === form.id ? { ...x, ...u } : x)))
+      }
+
       closeEdit()
     } catch (e: any) {
       setError(e?.message || 'Erro ao salvar produto')
@@ -163,13 +197,25 @@ export default function AdminProductsPage() {
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Admin • Produtos</h1>
-        <button
-          onClick={load}
-          disabled={loading || saving}
-          className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm hover:border-slate-600 disabled:opacity-60"
-        >
-          Recarregar
-        </button>
+
+        <div className="flex gap-2">
+          {/* ✅ NOVO botão */}
+          <button
+            onClick={openCreate}
+            disabled={loading || saving}
+            className="px-3 py-2 rounded-lg bg-emerald-500 text-slate-900 text-sm font-semibold hover:bg-emerald-400 disabled:opacity-60"
+          >
+            Novo produto
+          </button>
+
+          <button
+            onClick={load}
+            disabled={loading || saving}
+            className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm hover:border-slate-600 disabled:opacity-60"
+          >
+            Recarregar
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
@@ -210,9 +256,7 @@ export default function AdminProductsPage() {
                   <div className="text-xs text-slate-500 font-mono">{p.id}</div>
                 </div>
 
-                <div className="col-span-2 text-emerald-400">
-                  {n(p.price).toFixed(2)} MT
-                </div>
+                <div className="col-span-2 text-emerald-400">{n(p.price).toFixed(2)} MT</div>
 
                 <div className="col-span-2">{n(p.stock)}</div>
 
@@ -251,14 +295,16 @@ export default function AdminProductsPage() {
         </div>
       )}
 
-      {/* Modal editar */}
+      {/* Modal criar/editar */}
       {editOpen && form && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold">Editar produto</div>
-                <div className="text-xs text-slate-500 font-mono">{form.id}</div>
+                <div className="text-lg font-semibold">
+                  {form.id ? 'Editar produto' : 'Novo produto'}
+                </div>
+                {form.id && <div className="text-xs text-slate-500 font-mono">{form.id}</div>}
               </div>
 
               <button
@@ -335,7 +381,7 @@ export default function AdminProductsPage() {
                 disabled={saving || !form.name.trim()}
                 className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-900 text-sm font-semibold hover:bg-emerald-400 disabled:opacity-60"
               >
-                {saving ? 'Salvando…' : 'Salvar'}
+                {saving ? 'Salvando…' : form.id ? 'Salvar' : 'Criar'}
               </button>
             </div>
           </div>
