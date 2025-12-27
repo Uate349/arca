@@ -11,6 +11,28 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
+# -----------------------------
+# ✅ JSON SAFE SERIALIZER (NÃO quebra DB)
+# -----------------------------
+class SerializerMixin:
+    """
+    Converte modelos SQLAlchemy para dict seguro para JSON.
+    - Decimal -> float
+    - datetime -> ISO string
+    """
+    def to_dict(self):
+        out = {}
+        for col in self.__table__.columns:
+            v = getattr(self, col.name)
+            if isinstance(v, Decimal):
+                out[col.name] = float(v)
+            elif isinstance(v, datetime):
+                out[col.name] = v.isoformat()
+            else:
+                out[col.name] = v
+        return out
+
+
 class UserRole(str, enum.Enum):
     customer = "customer"
     consultant = "consultant"
@@ -24,7 +46,7 @@ class UserLevel(str, enum.Enum):
     ouro = "ouro"
 
 
-class User(Base):
+class User(Base, SerializerMixin):
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -45,7 +67,7 @@ class User(Base):
     payouts = relationship("Payout", back_populates="user")
 
 
-class Product(Base):
+class Product(Base, SerializerMixin):
     __tablename__ = "products"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -69,7 +91,7 @@ class OrderStatus(str, enum.Enum):
     canceled = "canceled"
 
 
-class Order(Base):
+class Order(Base, SerializerMixin):
     __tablename__ = "orders"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -86,7 +108,7 @@ class Order(Base):
     commissions = relationship("CommissionRecord", back_populates="order")
 
 
-class OrderItem(Base):
+class OrderItem(Base, SerializerMixin):
     __tablename__ = "order_items"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -106,7 +128,7 @@ class PointsType(str, enum.Enum):
     adjust = "adjust"
 
 
-class PointsTransaction(Base):
+class PointsTransaction(Base, SerializerMixin):
     __tablename__ = "points_transactions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -126,7 +148,7 @@ class CommissionType(str, enum.Enum):
     staff_pool = "staff_pool"
 
 
-class CommissionRecord(Base):
+class CommissionRecord(Base, SerializerMixin):
     __tablename__ = "commission_records"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -146,7 +168,7 @@ class PayoutStatus(str, enum.Enum):
     processed = "processed"
 
 
-class Payout(Base):
+class Payout(Base, SerializerMixin):
     __tablename__ = "payouts"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

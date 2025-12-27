@@ -1,28 +1,56 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_admin
-from ..models import User, UserRole
-
-# ⚠️ Ajusta este import se o teu model tiver outro nome:
-from ..models import Product
+from ..models import User, UserRole, Product
 
 # ✅ Imports "safe" para não quebrar caso ainda não existam
 try:
-    from ..models import Order  # se existir no teu models.py
+    from ..models import Order
 except Exception:
     Order = None  # type: ignore
 
 try:
-    from ..models import Payout  # se existir no teu models.py
+    from ..models import Payout
 except Exception:
     Payout = None  # type: ignore
 
-
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# -------------------------
+# HELPERS (JSON safe)
+# -------------------------
+def _enum_to_value(v: Any) -> Any:
+    # Enum -> "value"
+    try:
+        return v.value  # type: ignore[attr-defined]
+    except Exception:
+        return v
+
+def _model_to_dict(obj: Any) -> Dict[str, Any]:
+    """
+    Converte SQLAlchemy model em dict seguro.
+    - Usa to_dict() se existir (recomendado)
+    - Caso não exista, faz fallback simples pelos columns
+    """
+    if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
+        d = obj.to_dict()
+        # garante enums como string
+        for k, v in list(d.items()):
+            d[k] = _enum_to_value(v)
+        return d
+
+    # fallback (não deve ser necessário se usares SerializerMixin)
+    out: Dict[str, Any] = {}
+    if hasattr(obj, "__table__") and hasattr(obj.__table__, "columns"):
+        for col in obj.__table__.columns:
+            v = getattr(obj, col.name)
+            out[col.name] = _enum_to_value(v)
+    return out
 
 
 # -------------------------
@@ -44,9 +72,9 @@ def list_users(
             "name": getattr(u, "name", None),
             "email": getattr(u, "email", None),
             "phone": getattr(u, "phone", None),
-            "role": getattr(u.role, "value", u.role),
+            "role": _enum_to_value(getattr(u, "role", None)),
             "created_at": getattr(u, "created_at", None),
-            "active": getattr(u, "active", None),
+            "active": getattr(u, "active", None),  # no teu model pode não existir -> fica None
         }
         for u in users
     ]
@@ -63,9 +91,11 @@ def set_user_role(
     if not role_in:
         raise HTTPException(status_code=400, detail="role is required")
 
+    # ✅ Ajustado ao teu UserRole atual
     role_map = {
         "admin": UserRole.admin,
-        "supplier": UserRole.supplier,
+        "staff": UserRole.staff,
+        "consultant": UserRole.consultant,
         "customer": UserRole.customer,
     }
     if role_in not in role_map:
@@ -78,7 +108,7 @@ def set_user_role(
     user.role = role_map[role_in]
     db.commit()
     db.refresh(user)
-    return {"id": str(user.id), "role": getattr(user.role, "value", user.role)}
+    return {"id": str(user.id), "role": _enum_to_value(user.role)}
 
 
 # -------------------------
@@ -94,7 +124,10 @@ def admin_list_products(
     q = db.query(Product)
     if hasattr(Product, "created_at"):
         q = q.order_by(Product.created_at.desc())
-    return q.all()
+    products = q.all()
+
+    # ✅ retorna JSON limpo (sem Decimal/Enum quebrando)
+    return [_model_to_dict(p) for p in products]
 
 
 @router.post("/products", status_code=status.HTTP_201_CREATED)
@@ -116,10 +149,11 @@ def admin_create_product(
         name=name,
         description=payload.get("description") or "",
         category=payload.get("category") or "Outros",
-        image_url=payload.get("image_url") or "",
-        video_url=payload.get("video_url") or "",
+        image_url=payload.get("image_url") or None,
+        video_url=payload.get("video_url") or None,
         active=bool(payload.get("active", True)),
         stock=stock,
+        # ✅ Numeric aceita string, float ou Decimal — mantive compatível
         price=payload.get("price") if payload.get("price") is not None else "0.00",
         cost=payload.get("cost") if payload.get("cost") is not None else "0.00",
     )
@@ -127,7 +161,7 @@ def admin_create_product(
     db.add(product)
     db.commit()
     db.refresh(product)
-    return product
+    return _model_to_dict(product)
 
 
 @router.patch("/products/{product_id}")
@@ -153,7 +187,7 @@ def admin_update_product(
 
     db.commit()
     db.refresh(product)
-    return product
+    return _model_to_dict(product)
 
 
 @router.post("/products/{product_id}/deactivate")
@@ -172,7 +206,7 @@ def admin_deactivate_product(
     product.active = False
     db.commit()
     db.refresh(product)
-    return {"id": str(product.id), "active": product.active}
+    return {"id": str(product.id), "active": bool(product.active)}
 
 
 # -------------------------
@@ -186,13 +220,16 @@ def admin_list_payouts(
     if Payout is None:
         raise HTTPException(
             status_code=501,
-            detail="Model Payout não existe/import falhou. Diz-me o nome correto do model (ex: Withdrawal, Cashout, PayoutRequest)."
+            detail="Model Payout não existe/import falhou."
         )
 
     q = db.query(Payout)
     if hasattr(Payout, "created_at"):
         q = q.order_by(Payout.created_at.desc())
-    return q.all()
+    payouts = q.all()
+
+    # ✅ JSON limpo
+    return [_model_to_dict(p) for p in payouts]
 
 
 # -------------------------
@@ -206,10 +243,13 @@ def admin_list_orders(
     if Order is None:
         raise HTTPException(
             status_code=501,
-            detail="Model Order não existe/import falhou. Diz-me o nome correto do model (ex: Purchase, Pedido, OrderModel)."
+            detail="Model Order não existe/import falhou."
         )
 
     q = db.query(Order)
     if hasattr(Order, "created_at"):
         q = q.order_by(Order.created_at.desc())
-    return q.all()
+    orders = q.all()
+
+    # ✅ JSON limpo
+    return [_model_to_dict(o) for o in orders]
