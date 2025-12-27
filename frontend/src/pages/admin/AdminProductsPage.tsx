@@ -5,6 +5,7 @@ type AdminProduct = {
   id: string
   name: string
   price?: number | string | null
+  cost_price?: number | string | null
   stock?: number | string | null
   active: boolean
   image_url?: string | null
@@ -15,6 +16,7 @@ type EditForm = {
   id: string | null // ✅ agora pode ser null para "Novo produto"
   name: string
   price: string
+  cost_price: string
   stock: string
   active: boolean
   image_url: string
@@ -85,6 +87,7 @@ export default function AdminProductsPage() {
       id: null,
       name: '',
       price: '0.00',
+      cost_price: '0.00', // ✅ NOVO
       stock: '0',
       active: true,
       image_url: '',
@@ -97,6 +100,7 @@ export default function AdminProductsPage() {
       id: p.id,
       name: p.name ?? '',
       price: n(p.price).toFixed(2),
+      cost_price: n(p.cost_price).toFixed(2), // ✅ NOVO
       stock: String(n(p.stock)),
       active: !!p.active,
       image_url: (p.image_url ?? '').toString(),
@@ -146,6 +150,7 @@ export default function AdminProductsPage() {
       const payload = {
         name: form.name.trim(),
         price: n(form.price),
+        cost_price: n(form.cost_price), // ✅ NOVO (admin only)
         stock: n(form.stock),
         active: form.active,
         image_url: form.image_url?.trim() || null,
@@ -219,9 +224,7 @@ export default function AdminProductsPage() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
-        <div className="text-sm text-slate-400">
-          {loading ? 'Carregando…' : `${filtered.length} produto(s)`}
-        </div>
+        <div className="text-sm text-slate-400">{loading ? 'Carregando…' : `${filtered.length} produto(s)`}</div>
 
         <input
           value={q}
@@ -235,11 +238,13 @@ export default function AdminProductsPage() {
 
       {!loading && !error && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+          {/* ✅ Ajustei o grid para caber "Custo" */}
           <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs text-slate-400 border-b border-slate-800">
             <div className="col-span-4">Produto</div>
             <div className="col-span-2">Preço</div>
-            <div className="col-span-2">Stock</div>
-            <div className="col-span-2">Estado</div>
+            <div className="col-span-2">Custo</div>
+            <div className="col-span-1">Stock</div>
+            <div className="col-span-1">Estado</div>
             <div className="col-span-2 text-right">Ações</div>
           </div>
 
@@ -258,9 +263,12 @@ export default function AdminProductsPage() {
 
                 <div className="col-span-2 text-emerald-400">{n(p.price).toFixed(2)} MT</div>
 
-                <div className="col-span-2">{n(p.stock)}</div>
+                {/* ✅ Custo (só admin) */}
+                <div className="col-span-2 text-slate-300">{n(p.cost_price).toFixed(2)} MT</div>
 
-                <div className="col-span-2">
+                <div className="col-span-1">{n(p.stock)}</div>
+
+                <div className="col-span-1">
                   <span
                     className={
                       p.active
@@ -301,9 +309,7 @@ export default function AdminProductsPage() {
           <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold">
-                  {form.id ? 'Editar produto' : 'Novo produto'}
-                </div>
+                <div className="text-lg font-semibold">{form.id ? 'Editar produto' : 'Novo produto'}</div>
                 {form.id && <div className="text-xs text-slate-500 font-mono">{form.id}</div>}
               </div>
 
@@ -336,6 +342,17 @@ export default function AdminProductsPage() {
                 />
               </div>
 
+              {/* ✅ NOVO: Custo (só admin) */}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400">Custo (MT) — apenas Admin</label>
+                <input
+                  value={form.cost_price}
+                  onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                  inputMode="decimal"
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Stock</label>
                 <input
@@ -346,7 +363,7 @@ export default function AdminProductsPage() {
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1 md:col-span-2">
                 <label className="text-xs text-slate-400">Imagem (URL)</label>
                 <input
                   value={form.image_url}
