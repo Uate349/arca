@@ -7,8 +7,7 @@ interface Props {
 }
 
 export default function ProductCard({ product, onAddToCart }: Props) {
-  const cart: any = useCart()
-  const { items } = cart
+  const { items, decrementFromCart } = useCart()
 
   // ✅ quantidade deste produto no carrinho (por product_id)
   const qtyInCart = useMemo(() => {
@@ -31,25 +30,10 @@ export default function ProductCard({ product, onAddToCart }: Props) {
     window.setTimeout(() => setPulse(null), 500)
   }
 
-  // ✅ diminuir 1 sem quebrar: tenta várias funções do store
+  // ✅ AGORA diminui 1 de verdade: 5->4->3->2->1->0
   function handleMinus() {
     if (qtyInCart <= 0) return
-
-    const nextQty = Math.max(0, qtyInCart - 1)
-
-    // 1) decrement (ideal)
-    if (typeof cart.decrementItem === 'function') cart.decrementItem(product.id)
-    else if (typeof cart.decrement === 'function') cart.decrement(product.id)
-    else if (typeof cart.decreaseQty === 'function') cart.decreaseQty(product.id)
-    else if (typeof cart.removeOne === 'function') cart.removeOne(product.id)
-
-    // 2) update quantity
-    else if (typeof cart.updateQuantity === 'function') cart.updateQuantity(product.id, nextQty)
-    else if (typeof cart.setQuantity === 'function') cart.setQuantity(product.id, nextQty)
-    else if (typeof cart.updateQty === 'function') cart.updateQty(product.id, nextQty)
-
-    // 3) fallback: remove (pode remover tudo — mas não quebra)
-    else if (typeof cart.removeFromCart === 'function') cart.removeFromCart(product.id)
+    decrementFromCart(product.id)
 
     setPulse('-1')
     window.setTimeout(() => setPulse(null), 500)
