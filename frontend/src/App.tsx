@@ -8,6 +8,9 @@ import CheckoutPage from './pages/CheckoutPage'
 import AccountPage from './pages/AccountPage'
 import ConsultantDashboardPage from './pages/ConsultantDashboardPage'
 
+// ✅ Preview do carrinho (novo)
+import CartPreviewSticky from './components/CartPreviewSticky'
+
 // ✅ Admin (novo caminho + novas páginas)
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminOrdersPage from './pages/admin/AdminOrdersPage'
@@ -35,6 +38,9 @@ export default function App() {
           <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
         </Routes>
       </main>
+
+      {/* ✅ Carrinho preview sticky (aparece só quando tem itens) */}
+      <CartPreviewSticky />
     </div>
   )
 }
