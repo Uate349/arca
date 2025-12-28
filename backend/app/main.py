@@ -40,11 +40,11 @@ def startup():
         db.close()
 
 
-# CORS
+# ✅ CORS (corrigido para não travar preflight)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ajuste depois
-    allow_credentials=True,
+    allow_origins=["*"],   # depois podes restringir
+    allow_credentials=False,  # ✅ com "*" o certo é False
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -85,7 +85,6 @@ def job_payouts():
 
 @app.on_event("startup")
 def start_scheduler():
-    # roda a cada 24 horas (podes ajustar depois)
     scheduler.add_job(job_payouts, "interval", hours=24, id="job_payouts", replace_existing=True)
     scheduler.start()
 
