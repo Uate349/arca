@@ -44,7 +44,7 @@ export default function ProductCard({ product, onAddToCart }: Props) {
     window.setTimeout(() => setPulse(null), 500)
   }
 
-  // ✅ AGORA diminui 1 de verdade: 5->4->3->2->1->0
+  // ✅ diminui 1 de verdade: 5->4->3->2->1->0
   function handleMinus() {
     if (qtyInCart <= 0) return
     decrementFromCart(product.id)
@@ -81,8 +81,25 @@ export default function ProductCard({ product, onAddToCart }: Props) {
         <h3 className="font-semibold text-lg">{product.name}</h3>
         <p className="text-xs text-slate-400 line-clamp-2">{product.description}</p>
 
-        {/* (opcional) mostrar stock */}
-        {/* <div className="mt-1 text-[11px] text-slate-500">Stock: {stock}</div> */}
+        {/* ✅ Stock (profissional) */}
+        <div className="mt-2 text-[11px]">
+          {soldOut ? (
+            <span className="inline-flex items-center gap-2 text-red-300">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              Esgotado
+            </span>
+          ) : stock <= 5 ? (
+            <span className="inline-flex items-center gap-2 text-amber-200">
+              <span className="w-2 h-2 rounded-full bg-amber-300" />
+              Baixo stock: <b>{stock}</b>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 text-emerald-200/80">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              Em stock
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
@@ -110,9 +127,10 @@ export default function ProductCard({ product, onAddToCart }: Props) {
               onClick={handleAdd}
               disabled={soldOut || atMax}
               className={`w-8 h-7 rounded-lg text-xs font-bold
-                ${soldOut || atMax
-                  ? "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed"
-                  : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
+                ${
+                  soldOut || atMax
+                    ? "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed"
+                    : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
                 }`}
               aria-label="Aumentar"
               title={soldOut ? "Esgotado" : atMax ? `Máximo: ${stock}` : "Aumentar"}
@@ -125,9 +143,10 @@ export default function ProductCard({ product, onAddToCart }: Props) {
             onClick={handleAdd}
             disabled={soldOut}
             className={`px-3 py-1 rounded-lg text-xs font-semibold
-              ${soldOut
-                ? "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed"
-                : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
+              ${
+                soldOut
+                  ? "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed"
+                  : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
               }`}
             title={soldOut ? "Esgotado" : "Adicionar"}
           >
