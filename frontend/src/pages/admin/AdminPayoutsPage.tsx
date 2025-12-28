@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "../../store/authStore"
-import {
-  adminFetchPayouts,
-  adminGeneratePayouts,
-} from "../../api/payoutsApi"
+import { adminFetchPayouts, adminGeneratePayouts } from "../../api/payoutsApi"
 
 type AdminPayout = {
   id: string
@@ -14,6 +11,23 @@ type AdminPayout = {
   period_start?: string | null
   period_end?: string | null
   created_at?: string | null
+}
+
+function getErrMsg(e: any) {
+  // axios error
+  const detail =
+    e?.response?.data?.detail ??
+    e?.response?.data?.message ??
+    e?.message ??
+    "Falha ao processar"
+
+  // detail pode vir como string ou objeto
+  if (typeof detail === "string") return detail
+  try {
+    return JSON.stringify(detail)
+  } catch {
+    return String(detail)
+  }
 }
 
 export default function AdminPayoutsPage() {
@@ -48,7 +62,7 @@ export default function AdminPayoutsPage() {
       const list = Array.isArray(data) ? data : data?.payouts ?? []
       setRows(list)
     } catch (e: any) {
-      setError(e?.message || "Erro ao carregar payouts")
+      setError(getErrMsg(e) || "Erro ao carregar payouts")
     } finally {
       setLoading(false)
     }
@@ -65,7 +79,9 @@ export default function AdminPayoutsPage() {
 
       alert(`Payouts gerados: ${res?.created ?? 0}`)
     } catch (e: any) {
-      setError("Falha ao gerar payouts")
+      // ✅ agora mostra o erro real (404/403/422 + detail)
+      const msg = getErrMsg(e)
+      setError(msg ? `Falha ao gerar payouts: ${msg}` : "Falha ao gerar payouts")
     } finally {
       setLoading(false)
     }
@@ -134,7 +150,11 @@ export default function AdminPayoutsPage() {
         />
       </div>
 
-      {error && <div className="text-sm text-red-400">{error}</div>}
+      {error && (
+        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+          {error}
+        </div>
+      )}
 
       {!loading && !error && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -147,9 +167,7 @@ export default function AdminPayoutsPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-sm text-slate-400">
-              Sem payouts.
-            </div>
+            <div className="px-4 py-4 text-sm text-slate-400">Sem payouts.</div>
           ) : (
             filtered.map((p) => (
               <div
@@ -158,15 +176,12 @@ export default function AdminPayoutsPage() {
               >
                 <div className="col-span-3">
                   <div className="font-mono text-xs break-all">{p.id}</div>
-                  <div className="text-xs text-slate-500">
-                    {fmtDate(p.created_at)}
-                  </div>
+                  <div className="text-xs text-slate-500">{fmtDate(p.created_at)}</div>
                 </div>
 
                 <div className="col-span-3">
                   <div className="font-medium">
-                    {p.user?.name ||
-                      (p.user_id ? `User ${p.user_id}` : "—")}
+                    {p.user?.name || (p.user_id ? `User ${p.user_id}` : "—")}
                   </div>
                   <div className="text-xs text-slate-500">
                     {p.user?.phone || p.user?.email || "—"}
