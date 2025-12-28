@@ -1,71 +1,26 @@
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCart } from "../store/cartStore"
 import { useAuth } from "../store/authStore"
 import { createOrder } from "../api/ordersApi"
 
-type StockIssue = {
-  product_id: string | number
-  name?: string
-  available: number
-  requested: number
-}
-
-function getItemAvailableStock(i: any): number | null {
-  // tenta campos comuns sem quebrar (se não existir, retorna null)
-  const raw =
-    i?.stock ??
-    i?.available ??
-    i?.inventory ??
-    i?.qty_stock ??
-    i?.available_stock ??
-    i?.in_stock
-
-  if (raw === undefined || raw === null) return null
-  const n = Number(raw)
-  if (!Number.isFinite(n)) return null
-  return Math.max(0, n)
-}
-
-function extractBackendStockIssues(err: any): StockIssue[] | null {
-  // Compatível com axios/fetch/erros diversos
-  const data =
-    err?.response?.data ??
-    err?.data ??
-    err?.body ??
-    err?.error ??
-    null
-
-  const status = err?.response?.status ?? err?.status ?? null
-
-  // 1) formato ideal: 409 + { detail: "Sem stock", items: [...] }
-  if (status === 409 && data && Array.isArray(data.items)) {
-    return data.items.map((x: any) => ({
-      product_id: x.product_id ?? x.productId ?? x.id ?? "unknown",
-      name: x.name ?? x.product_name ?? x.productName,
-      available: Number(x.available ?? x.stock ?? 0) || 0,
-      requested: Number(x.requested ?? x.quantity ?? 0) || 0,
-    }))
-  }
-
-  // 2) fallback por texto (detail/message)
-  const msg = String(
-    data?.detail ?? data?.message ?? err?.message ?? ""
-  ).toLowerCase()
-
-  if (msg.includes("sem stock") || msg.includes("out of stock") || msg.includes("stock")) {
-    // não temos lista detalhada; devolve “genérico”
-    return [
-      {
-        product_id: "unknown",
-        name: undefined,
-        available: 0,
-        requested: 0,
-      },
-    ]
-  }
-
+function getErrData(err: any) {
+  // axios: err.response.data
+  if (err?.response?.data) return err.response.data
+  // fetch wrapper: err.data
+  if (err?.data) return err.data
   return null
+}
+
+function getErrMessage(err: any) {
+  const data = getErrData(err)
+  const msg = String(data?.detail ?? data?.message ?? err?.message ?? "")
+  return msg
+}
+
+function looksLikeStockError(msg: string) {
+  const m = msg.toLowerCase()
+  return m.includes("sem stock") || m.includes("out of stock") || m.includes("stock")
 }
 
 export default function CheckoutPage() {
@@ -73,46 +28,18 @@ export default function CheckoutPage() {
   const { token } = useAuth()
   const [pointsToUse, setPointsToUse] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [stockIssuesFromBackend, setStockIssuesFromBackend] = useState<StockIssue[] | null>(null)
+  const [stockDetails, setStockDetails] = useState<any[] | null>(null)
   const navigate = useNavigate()
 
-  const totalCalc = useMemo(() => {
-    return items.reduce((sum, i) => sum + Number(i.price) * Number(i.quantity), 0)
-  }, [items])
-
-  // ✅ Detecta falta de stock local (SE o item tiver campo de stock)
-  const localStockIssues: StockIssue[] = useMemo(() => {
-    const issues: StockIssue[] = []
-
-    for (const i of items) {
-      const available = getItemAvailableStock(i)
-      if (available === null) continue // não temos info de stock no carrinho → não bloqueia
-      const requested = Number(i.quantity ?? 0)
-      if (requested > available) {
-        issues.push({
-          product_id: i.product_id,
-          name: i.name,
-          available,
-          requested,
-        })
-      }
-    }
-
-    return issues
-  }, [items])
-
-  const shouldBlockSubmit = localStockIssues.length > 0
+  const totalCalc = items.reduce(
+    (sum, i) => sum + Number(i.price) * Number(i.quantity),
+    0
+  )
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    setStockIssuesFromBackend(null)
-
-    // ✅ bloqueia se já sabemos que falta stock
-    if (shouldBlockSubmit) {
-      setError("Alguns itens excedem o stock disponível. Ajuste o carrinho para continuar.")
-      return
-    }
+    setStockDetails(null)
 
     if (!token) {
       setError("Precisa estar autenticado para finalizar.")
@@ -121,10 +48,7 @@ export default function CheckoutPage() {
 
     try {
       const payload = {
-        items: items.map((i) => ({
-          product_id: i.product_id,
-          quantity: i.quantity,
-        })),
+        items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
         points_to_use: pointsToUse,
       }
 
@@ -132,15 +56,23 @@ export default function CheckoutPage() {
       clearCart()
       navigate("/account")
     } catch (err: any) {
-      const issues = extractBackendStockIssues(err)
+      const data = getErrData(err)
+      const msg = getErrMessage(err)
 
-      if (issues) {
-        setStockIssuesFromBackend(issues)
-        // mensagem amigável
+      // ✅ Se backend devolver algo tipo: { detail: "Sem stock", items: [...] }
+      if (Array.isArray(data?.items)) {
+        setStockDetails(data.items)
         setError("Sem stock em alguns produtos.")
-      } else {
-        setError("Erro ao finalizar compra")
+        return
       }
+
+      // ✅ fallback: se o texto mencionar stock
+      if (looksLikeStockError(msg)) {
+        setError(msg || "Sem stock em alguns produtos.")
+        return
+      }
+
+      setError("Erro ao finalizar compra")
     }
   }
 
@@ -173,23 +105,6 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* ✅ Aviso local de stock (se existir stock nos items) */}
-        {localStockIssues.length > 0 && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-            <div className="font-semibold mb-1">Itens com stock insuficiente:</div>
-            <ul className="list-disc pl-5 space-y-1">
-              {localStockIssues.map((x) => (
-                <li key={String(x.product_id)}>
-                  <b>{x.name ?? "Produto"}</b>: disponível <b>{x.available}</b>, no carrinho <b>{x.requested}</b>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-2 text-amber-200/90">
-              Ajuste as quantidades no carrinho para poder confirmar.
-            </div>
-          </div>
-        )}
-
         <div>
           <label className="text-xs text-slate-400 block mb-1">
             Pontos a usar (máx 30% do valor)
@@ -203,29 +118,23 @@ export default function CheckoutPage() {
           />
         </div>
 
-        {/* ✅ Erro amigável + detalhes quando vem do backend */}
+        {/* ✅ Erro amigável + detalhes do backend (se existirem) */}
         {error && (
           <div className="text-xs text-red-300">
             {error}
 
-            {stockIssuesFromBackend?.length ? (
+            {stockDetails?.length ? (
               <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-red-200">
                 <div className="font-semibold mb-1">Detalhes:</div>
-
-                {/* Se veio “genérico”, não tem nome/available */}
-                {stockIssuesFromBackend.length === 1 &&
-                stockIssuesFromBackend[0].product_id === "unknown" ? (
-                  <div>Sem stock (o servidor não enviou detalhes do produto).</div>
-                ) : (
-                  <ul className="list-disc pl-5 space-y-1">
-                    {stockIssuesFromBackend.map((x, idx) => (
-                      <li key={idx}>
-                        Produto <b>{x.name ?? x.product_id}</b> sem stock suficiente — disponível{" "}
-                        <b>{x.available}</b>, solicitado <b>{x.requested}</b>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ul className="list-disc pl-5 space-y-1">
+                  {stockDetails.map((x: any, idx: number) => (
+                    <li key={idx}>
+                      Produto <b>{x.name ?? x.product_name ?? x.productId ?? x.product_id}</b>{" "}
+                      — disponível <b>{x.available ?? x.stock ?? 0}</b>, solicitado{" "}
+                      <b>{x.requested ?? x.quantity ?? 0}</b>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ) : null}
           </div>
@@ -233,10 +142,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={shouldBlockSubmit}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold
-            ${shouldBlockSubmit ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"}`}
-          title={shouldBlockSubmit ? "Ajuste as quantidades para continuar" : "Confirmar compra"}
+          className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-900 text-sm font-semibold hover:bg-emerald-400"
         >
           Confirmar compra
         </button>
