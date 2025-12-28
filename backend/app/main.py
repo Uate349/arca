@@ -43,26 +43,39 @@ def startup():
 # ✅ CORS (corrigido para não travar preflight)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # depois podes restringir
+    allow_origins=["*"],  # depois podes restringir
     allow_credentials=False,  # ✅ com "*" o certo é False
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+# -----------------------------
 # routers
+# -----------------------------
 app.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
 app.include_router(users_routes.router, prefix="/users", tags=["Users"])
 app.include_router(products_routes.router, prefix="/products", tags=["Products"])
 app.include_router(orders_routes.router, prefix="/orders", tags=["Orders"])
-app.include_router(payouts_routes.router, prefix="/payouts", tags=["Payouts"])
+
+# ✅ PAYOUTS: agora o prefix vem dentro do payouts_routes.py
+# router => prefix="/payouts"
+# admin_router => prefix="/admin/payouts"
+app.include_router(payouts_routes.router)
+if hasattr(payouts_routes, "admin_router"):
+    app.include_router(payouts_routes.admin_router)
+
 app.include_router(uploads_routes.router, prefix="/uploads", tags=["Uploads"])
 app.include_router(commissions_routes.router, prefix="/commissions", tags=["Commissions"])
 app.include_router(payments_routes.router, prefix="/payments", tags=["Payments"])
-app.include_router(admin.router)  # ✅ Admin endpoints
+
+# ✅ Admin endpoints (outros endpoints admin)
+app.include_router(admin.router)
 
 
+# -----------------------------
 # servir media (imagens)
+# -----------------------------
 app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
 
 
@@ -85,7 +98,13 @@ def job_payouts():
 
 @app.on_event("startup")
 def start_scheduler():
-    scheduler.add_job(job_payouts, "interval", hours=24, id="job_payouts", replace_existing=True)
+    scheduler.add_job(
+        job_payouts,
+        "interval",
+        hours=24,
+        id="job_payouts",
+        replace_existing=True,
+    )
     scheduler.start()
 
 

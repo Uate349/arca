@@ -14,14 +14,12 @@ type AdminPayout = {
 }
 
 function getErrMsg(e: any) {
-  // axios error
   const detail =
     e?.response?.data?.detail ??
     e?.response?.data?.message ??
     e?.message ??
     "Falha ao processar"
 
-  // detail pode vir como string ou objeto
   if (typeof detail === "string") return detail
   try {
     return JSON.stringify(detail)
@@ -42,21 +40,29 @@ export default function AdminPayoutsPage() {
     return Number.isFinite(x) ? x : 0
   }
 
-  const fmtDate = (iso?: string | null) => {
+  const fmtDateTime = (iso?: string | null) => {
     if (!iso) return "—"
     const d = new Date(iso)
     return isNaN(d.getTime()) ? "—" : d.toLocaleString()
   }
 
+  const fmtDateOnly = (iso?: string | null) => {
+    if (!iso) return "—"
+    const d = new Date(iso)
+    return isNaN(d.getTime()) ? "—" : d.toLocaleDateString()
+  }
+
   async function load() {
+    if (!token) {
+      setRows([])
+      setError("Precisa estar autenticado como ADMIN.")
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
-
-      if (!token) {
-        setError("Precisa estar autenticado como ADMIN.")
-        return
-      }
 
       const data = await adminFetchPayouts(token)
       const list = Array.isArray(data) ? data : data?.payouts ?? []
@@ -69,17 +75,24 @@ export default function AdminPayoutsPage() {
   }
 
   async function handleGenerate(days = 30) {
-    if (!token) return
+    if (!token) {
+      setError("Precisa estar autenticado como ADMIN.")
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
       const res = await adminGeneratePayouts(token, days)
-      await load()
+
+      // recarrega lista sem duplicar loading/piscadas
+      const data = await adminFetchPayouts(token)
+      const list = Array.isArray(data) ? data : data?.payouts ?? []
+      setRows(list)
 
       alert(`Payouts gerados: ${res?.created ?? 0}`)
     } catch (e: any) {
-      // ✅ agora mostra o erro real (404/403/422 + detail)
       const msg = getErrMsg(e)
       setError(msg ? `Falha ao gerar payouts: ${msg}` : "Falha ao gerar payouts")
     } finally {
@@ -176,7 +189,9 @@ export default function AdminPayoutsPage() {
               >
                 <div className="col-span-3">
                   <div className="font-mono text-xs break-all">{p.id}</div>
-                  <div className="text-xs text-slate-500">{fmtDate(p.created_at)}</div>
+                  <div className="text-xs text-slate-500">
+                    {fmtDateTime(p.created_at)}
+                  </div>
                 </div>
 
                 <div className="col-span-3">
@@ -189,8 +204,8 @@ export default function AdminPayoutsPage() {
                 </div>
 
                 <div className="col-span-2 text-xs text-slate-300">
-                  <div>{fmtDate(p.period_start)}</div>
-                  <div>{fmtDate(p.period_end)}</div>
+                  <div>{fmtDateOnly(p.period_start)}</div>
+                  <div>{fmtDateOnly(p.period_end)}</div>
                 </div>
 
                 <div className="col-span-2">
