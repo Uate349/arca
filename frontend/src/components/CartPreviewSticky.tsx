@@ -3,10 +3,16 @@ import { useMemo } from "react"
 import { useCart } from "../store/cartStore"
 
 export default function CartPreviewSticky() {
-  const { items, total } = useCart()
+  const { items } = useCart()
 
   const count = useMemo(
     () => items.reduce((acc, it) => acc + (it.quantity || 0), 0),
+    [items]
+  )
+
+  // ✅ subtotal calculado diretamente pelos itens (evita total=0 do store)
+  const subtotal = useMemo(
+    () => items.reduce((sum, it) => sum + Number(it.price) * Number(it.quantity || 0), 0),
     [items]
   )
 
@@ -60,7 +66,7 @@ export default function CartPreviewSticky() {
           <div>
             <div className="text-xs text-slate-400">Subtotal</div>
             <div className="text-base font-bold text-emerald-400">
-              {Number(total).toFixed(2)} MT
+              {Number(subtotal).toFixed(2)} MT
             </div>
           </div>
 
