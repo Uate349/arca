@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { CartItem, useCart } from '../store/cartStore'
+import { useMemo, useState } from "react"
+import { CartItem, useCart } from "../store/cartStore"
 
 interface Props {
   product: any
@@ -9,16 +9,30 @@ interface Props {
 export default function ProductCard({ product, onAddToCart }: Props) {
   const { items, decrementFromCart } = useCart()
 
+  // ✅ stock seguro (não quebra se vier string/undefined)
+  const stock = useMemo(() => {
+    const n = Number(product?.stock ?? 0)
+    return Number.isFinite(n) ? Math.max(0, n) : 0
+  }, [product?.stock])
+
+  const soldOut = stock <= 0
+
   // ✅ quantidade deste produto no carrinho (por product_id)
   const qtyInCart = useMemo(() => {
     const it = items?.find((i: any) => i.product_id === product.id)
-    return it?.quantity ?? 0
+    return Number(it?.quantity ?? 0)
   }, [items, product.id])
 
+  // ✅ se já atingiu o máximo do stock
+  const atMax = !soldOut && qtyInCart >= stock
+
   // ✅ feedback rápido quando clica
-  const [pulse, setPulse] = useState<null | '+1' | '-1'>(null)
+  const [pulse, setPulse] = useState<null | "+1" | "-1">(null)
 
   function handleAdd() {
+    // ✅ bloqueia adicionar se esgotado ou já no limite
+    if (soldOut || atMax) return
+
     onAddToCart({
       product_id: product.id,
       name: product.name,
@@ -26,7 +40,7 @@ export default function ProductCard({ product, onAddToCart }: Props) {
       quantity: 1,
     })
 
-    setPulse('+1')
+    setPulse("+1")
     window.setTimeout(() => setPulse(null), 500)
   }
 
@@ -35,7 +49,7 @@ export default function ProductCard({ product, onAddToCart }: Props) {
     if (qtyInCart <= 0) return
     decrementFromCart(product.id)
 
-    setPulse('-1')
+    setPulse("-1")
     window.setTimeout(() => setPulse(null), 500)
   }
 
@@ -48,17 +62,33 @@ export default function ProductCard({ product, onAddToCart }: Props) {
         </div>
       )}
 
+      {/* ✅ Badge Esgotado */}
+      {soldOut && (
+        <div className="absolute top-3 left-3 text-[11px] px-2 py-1 rounded-full bg-white/10 text-white/70 border border-white/10">
+          Esgotado
+        </div>
+      )}
+
       {product.image_url && (
-        <img src={product.image_url} alt={product.name} className="w-full h-40 object-cover rounded-lg" />
+        <img
+          src={product.image_url}
+          alt={product.name}
+          className="w-full h-40 object-cover rounded-lg"
+        />
       )}
 
       <div className="flex-1">
         <h3 className="font-semibold text-lg">{product.name}</h3>
         <p className="text-xs text-slate-400 line-clamp-2">{product.description}</p>
+
+        {/* (opcional) mostrar stock */}
+        {/* <div className="mt-1 text-[11px] text-slate-500">Stock: {stock}</div> */}
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="font-bold text-emerald-400">{Number(product.price).toFixed(2)} MT</span>
+        <span className="font-bold text-emerald-400">
+          {Number(product.price).toFixed(2)} MT
+        </span>
 
         {/* ✅ Opção A: se qty>0, vira controle - qty + */}
         {qtyInCart > 0 ? (
@@ -78,9 +108,14 @@ export default function ProductCard({ product, onAddToCart }: Props) {
 
             <button
               onClick={handleAdd}
-              className="w-8 h-7 rounded-lg bg-emerald-500 text-slate-900 text-xs font-bold hover:bg-emerald-400"
+              disabled={soldOut || atMax}
+              className={`w-8 h-7 rounded-lg text-xs font-bold
+                ${soldOut || atMax
+                  ? "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed"
+                  : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
+                }`}
               aria-label="Aumentar"
-              title="Aumentar"
+              title={soldOut ? "Esgotado" : atMax ? `Máximo: ${stock}` : "Aumentar"}
             >
               +
             </button>
@@ -88,9 +123,15 @@ export default function ProductCard({ product, onAddToCart }: Props) {
         ) : (
           <button
             onClick={handleAdd}
-            className="px-3 py-1 rounded-lg bg-emerald-500 text-slate-900 text-xs font-semibold hover:bg-emerald-400"
+            disabled={soldOut}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold
+              ${soldOut
+                ? "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed"
+                : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
+              }`}
+            title={soldOut ? "Esgotado" : "Adicionar"}
           >
-            Adicionar
+            {soldOut ? "Esgotado" : "Adicionar"}
           </button>
         )}
       </div>
