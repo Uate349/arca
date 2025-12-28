@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../../store/authStore'
+import { useEffect, useMemo, useState } from "react"
+import { useAuth } from "../../store/authStore"
+import {
+  adminFetchPayouts,
+  adminGeneratePayouts,
+} from "../../api/payoutsApi"
 
 type AdminPayout = {
   id: string
@@ -17,9 +21,7 @@ export default function AdminPayoutsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<AdminPayout[]>([])
-  const [q, setQ] = useState('')
-
-  const apiBase = import.meta.env.VITE_API_URL
+  const [q, setQ] = useState("")
 
   const n = (v: any) => {
     const x = Number(v)
@@ -27,9 +29,9 @@ export default function AdminPayoutsPage() {
   }
 
   const fmtDate = (iso?: string | null) => {
-    if (!iso) return '—'
+    if (!iso) return "—"
     const d = new Date(iso)
-    return isNaN(d.getTime()) ? '—' : d.toLocaleString()
+    return isNaN(d.getTime()) ? "—" : d.toLocaleString()
   }
 
   async function load() {
@@ -38,21 +40,32 @@ export default function AdminPayoutsPage() {
       setError(null)
 
       if (!token) {
-        setError('Precisa estar autenticado como ADMIN.')
+        setError("Precisa estar autenticado como ADMIN.")
         return
       }
 
-      const res = await fetch(`${apiBase}/admin/payouts`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (!res.ok) throw new Error('Falha ao carregar payouts')
-      const data = await res.json()
-
-      const list = Array.isArray(data) ? data : (data.payouts ?? [])
+      const data = await adminFetchPayouts(token)
+      const list = Array.isArray(data) ? data : data?.payouts ?? []
       setRows(list)
     } catch (e: any) {
-      setError(e?.message || 'Erro ao carregar payouts')
+      setError(e?.message || "Erro ao carregar payouts")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGenerate(days = 30) {
+    if (!token) return
+    try {
+      setLoading(true)
+      setError(null)
+
+      const res = await adminGeneratePayouts(token, days)
+      await load()
+
+      alert(`Payouts gerados: ${res?.created ?? 0}`)
+    } catch (e: any) {
+      setError("Falha ao gerar payouts")
     } finally {
       setLoading(false)
     }
@@ -67,12 +80,12 @@ export default function AdminPayoutsPage() {
     const s = q.trim().toLowerCase()
     if (!s) return rows
     return rows.filter((p) => {
-      const id = (p.id ?? '').toLowerCase()
-      const st = (p.status ?? '').toLowerCase()
-      const uid = (p.user_id ?? '').toLowerCase()
-      const name = (p.user?.name ?? '').toLowerCase()
-      const phone = (p.user?.phone ?? '').toLowerCase()
-      const email = (p.user?.email ?? '').toLowerCase()
+      const id = (p.id ?? "").toLowerCase()
+      const st = (p.status ?? "").toLowerCase()
+      const uid = (p.user_id ?? "").toLowerCase()
+      const name = (p.user?.name ?? "").toLowerCase()
+      const phone = (p.user?.phone ?? "").toLowerCase()
+      const email = (p.user?.email ?? "").toLowerCase()
       return (
         id.includes(s) ||
         st.includes(s) ||
@@ -89,18 +102,28 @@ export default function AdminPayoutsPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Admin • Payouts</h1>
 
-        <button
-          onClick={load}
-          disabled={loading}
-          className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm hover:border-slate-600 disabled:opacity-60"
-        >
-          Recarregar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleGenerate(30)}
+            disabled={loading}
+            className="px-3 py-2 rounded-lg bg-emerald-500 text-slate-900 text-sm font-semibold hover:bg-emerald-400 disabled:opacity-60"
+          >
+            Gerar (30 dias)
+          </button>
+
+          <button
+            onClick={load}
+            disabled={loading}
+            className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm hover:border-slate-600 disabled:opacity-60"
+          >
+            Recarregar
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
         <div className="text-sm text-slate-400">
-          {loading ? 'Carregando…' : `${filtered.length} payout(s)`}
+          {loading ? "Carregando…" : `${filtered.length} payout(s)`}
         </div>
 
         <input
@@ -124,7 +147,9 @@ export default function AdminPayoutsPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-sm text-slate-400">Sem payouts.</div>
+            <div className="px-4 py-4 text-sm text-slate-400">
+              Sem payouts.
+            </div>
           ) : (
             filtered.map((p) => (
               <div
@@ -133,29 +158,32 @@ export default function AdminPayoutsPage() {
               >
                 <div className="col-span-3">
                   <div className="font-mono text-xs break-all">{p.id}</div>
-                  <div className="text-xs text-slate-500">{fmtDate(p.created_at)}</div>
+                  <div className="text-xs text-slate-500">
+                    {fmtDate(p.created_at)}
+                  </div>
                 </div>
 
                 <div className="col-span-3">
                   <div className="font-medium">
-                    {p.user?.name || (p.user_id ? `User ${p.user_id}` : '—')}
+                    {p.user?.name ||
+                      (p.user_id ? `User ${p.user_id}` : "—")}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {p.user?.phone || p.user?.email || '—'}
+                    {p.user?.phone || p.user?.email || "—"}
                   </div>
                 </div>
 
                 <div className="col-span-2 text-xs text-slate-300">
-                  <div>{p.period_start ? fmtDate(p.period_start) : '—'}</div>
-                  <div>{p.period_end ? fmtDate(p.period_end) : '—'}</div>
+                  <div>{fmtDate(p.period_start)}</div>
+                  <div>{fmtDate(p.period_end)}</div>
                 </div>
 
                 <div className="col-span-2">
                   <span
                     className={
-                      (p.status || '').toLowerCase() === 'processed'
-                        ? 'text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                        : 'text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                      (p.status || "").toLowerCase() === "processed"
+                        ? "text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                        : "text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20"
                     }
                   >
                     {p.status}
