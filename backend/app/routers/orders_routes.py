@@ -42,6 +42,11 @@ def create_order(
     consultant_id = getattr(data, "consultant_id", None)
     ref_source = getattr(data, "ref_source", None)
 
+    # ✅ Regra profissional (A): auto-venda do consultor
+    # Se não veio consultant_id e quem compra é consultor, assume ele mesmo.
+    if not consultant_id and getattr(current, "role", None) == models.UserRole.consultant:
+        consultant_id = current.id
+
     # ✅ valida produtos e stock + calcula total
     total = Decimal("0.00")
     stock_issues: List[Dict[str, Any]] = []
