@@ -27,10 +27,10 @@ export async function adminFetchPayouts(token: string) {
 }
 
 // gerar payouts por período (admin)
-// ✅ AJUSTE: endpoint real do teu backend tende a ser /payouts/admin/generate
+// ✅ endpoint correto: /admin/payouts/generate
 export async function adminGeneratePayouts(token: string, days: number = 30) {
   const res = await api.post(
-    "/payouts/admin/generate",
+    "/admin/payouts/generate",
     { days },
     {
       headers: { Authorization: `Bearer ${token}` },
