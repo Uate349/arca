@@ -19,17 +19,21 @@ export async function createOrder(
  * ✅ Confirmar pagamento de um pedido
  * Backend real (Swagger):
  * - POST /payments/confirm
+ *
+ * ⚠️ OBS: o backend exige "amount" no body (Field required).
  */
 export async function confirmOrderPayment(
   token: string,
   orderId: string,
+  amount: number,
   method: "mpesa" | "emola" | "bank" = "mpesa",
   reference?: string
 ) {
   const res = await api.post(
-    `/payments/confirm`,
+    "/payments/confirm",
     {
       order_id: orderId,
+      amount: Number(amount ?? 0),
       method,
       reference,
     },

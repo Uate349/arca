@@ -32,10 +32,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
-  const totalCalc = items.reduce(
-    (sum, i) => sum + Number(i.price) * Number(i.quantity),
-    0
-  )
+  const totalCalc = items.reduce((sum, i) => sum + Number(i.price) * Number(i.quantity), 0)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -63,7 +60,9 @@ export default function CheckoutPage() {
       const order = await createOrder(token, payload)
 
       // ✅ simulação de pagamento (por enquanto)
-      await confirmOrderPayment(token, order.id, "mpesa")
+      // backend exige "amount" no /payments/confirm
+      const amount = Number(order?.total_amount ?? totalCalc)
+      await confirmOrderPayment(token, order.id, amount, "mpesa")
 
       clearCart()
       navigate("/account")
@@ -151,9 +150,8 @@ export default function CheckoutPage() {
                 <ul className="list-disc pl-5 space-y-1">
                   {stockDetails.map((x: any, idx: number) => (
                     <li key={idx}>
-                      Produto <b>{x.name ?? x.product_name ?? x.productId ?? x.product_id}</b>{" "}
-                      — disponível <b>{x.available ?? x.stock ?? 0}</b>, solicitado{" "}
-                      <b>{x.requested ?? x.quantity ?? 0}</b>
+                      Produto <b>{x.name ?? x.product_name ?? x.productId ?? x.product_id}</b> — disponível{" "}
+                      <b>{x.available ?? x.stock ?? 0}</b>, solicitado <b>{x.requested ?? x.quantity ?? 0}</b>
                     </li>
                   ))}
                 </ul>
