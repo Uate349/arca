@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
 
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,12 @@ try:
 except Exception:
     Payout = None  # type: ignore
 
+# ✅ Service "safe"
+try:
+    from ..services.payouts_service import gerar_payouts_periodo
+except Exception:
+    gerar_payouts_periodo = None  # type: ignore
+
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
@@ -30,6 +38,7 @@ def _enum_to_value(v: Any) -> Any:
         return v.value  # type: ignore[attr-defined]
     except Exception:
         return v
+
 
 def _model_to_dict(obj: Any) -> Dict[str, Any]:
     """
@@ -74,7 +83,7 @@ def list_users(
             "phone": getattr(u, "phone", None),
             "role": _enum_to_value(getattr(u, "role", None)),
             "created_at": getattr(u, "created_at", None),
-            "active": getattr(u, "active", None),  # no teu model pode não existir -> fica None
+            "active": getattr(u, "active", None),  # pode não existir -> None
         }
         for u in users
     ]
@@ -114,8 +123,6 @@ def set_user_role(
 # -------------------------
 # PRODUCTS
 # -------------------------
-
-# ✅ A) LISTAR PRODUTOS (Admin vê todos, ativos e inativos)
 @router.get("/products")
 def admin_list_products(
     db: Session = Depends(get_db),
@@ -125,8 +132,6 @@ def admin_list_products(
     if hasattr(Product, "created_at"):
         q = q.order_by(Product.created_at.desc())
     products = q.all()
-
-    # ✅ retorna JSON limpo (sem Decimal/Enum quebrando)
     return [_model_to_dict(p) for p in products]
 
 
@@ -153,7 +158,6 @@ def admin_create_product(
         video_url=payload.get("video_url") or None,
         active=bool(payload.get("active", True)),
         stock=stock,
-        # ✅ Numeric aceita string, float ou Decimal — mantive compatível
         price=payload.get("price") if payload.get("price") is not None else "0.00",
         cost=payload.get("cost") if payload.get("cost") is not None else "0.00",
     )
@@ -210,7 +214,7 @@ def admin_deactivate_product(
 
 
 # -------------------------
-# B) PAYOUTS (Admin histórico)
+# PAYOUTS (Admin histórico)
 # -------------------------
 @router.get("/payouts")
 def admin_list_payouts(
@@ -218,22 +222,55 @@ def admin_list_payouts(
     _: User = Depends(get_current_admin),
 ):
     if Payout is None:
-        raise HTTPException(
-            status_code=501,
-            detail="Model Payout não existe/import falhou."
-        )
+        raise HTTPException(status_code=501, detail="Model Payout não existe/import falhou.")
 
     q = db.query(Payout)
     if hasattr(Payout, "created_at"):
         q = q.order_by(Payout.created_at.desc())
     payouts = q.all()
-
-    # ✅ JSON limpo
     return [_model_to_dict(p) for p in payouts]
 
 
+# ✅ GERAR PAYOUTS (Admin)
+@router.post("/payouts/generate")
+def admin_generate_payouts(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+):
+    if Payout is None:
+        raise HTTPException(status_code=501, detail="Model Payout não existe/import falhou.")
+    if gerar_payouts_periodo is None:
+        raise HTTPException(status_code=501, detail="Serviço gerar_payouts_periodo não disponível.")
+
+    days = payload.get("days", 30)
+    try:
+        days = int(days)
+    except Exception:
+        raise HTTPException(status_code=400, detail="days must be integer")
+
+    if days < 1 or days > 365:
+        raise HTTPException(status_code=422, detail="days inválido (1..365)")
+
+    period_end = datetime.utcnow()
+    period_start = period_end - timedelta(days=days)
+
+    before = db.query(Payout).count()
+
+    gerar_payouts_periodo(db, period_start, period_end)
+    db.commit()
+
+    after = db.query(Payout).count()
+
+    return {
+        "created": max(0, after - before),
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
+    }
+
+
 # -------------------------
-# C) ORDERS (Admin pedidos)
+# ORDERS (Admin pedidos)
 # -------------------------
 @router.get("/orders")
 def admin_list_orders(
@@ -241,15 +278,10 @@ def admin_list_orders(
     _: User = Depends(get_current_admin),
 ):
     if Order is None:
-        raise HTTPException(
-            status_code=501,
-            detail="Model Order não existe/import falhou."
-        )
+        raise HTTPException(status_code=501, detail="Model Order não existe/import falhou.")
 
     q = db.query(Order)
     if hasattr(Order, "created_at"):
         q = q.order_by(Order.created_at.desc())
     orders = q.all()
-
-    # ✅ JSON limpo
     return [_model_to_dict(o) for o in orders]
