@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCart } from "../store/cartStore"
 import { useAuth } from "../store/authStore"
-import { createOrder } from "../api/ordersApi"
+import { createOrder, confirmOrderPayment } from "../api/ordersApi"
 
 function getErrData(err: any) {
   // axios: err.response.data
@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const [pointsToUse, setPointsToUse] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [stockDetails, setStockDetails] = useState<any[] | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
   const totalCalc = items.reduce(
@@ -46,13 +47,24 @@ export default function CheckoutPage() {
       return
     }
 
+    if (items.length === 0) {
+      setError("Carrinho vazio.")
+      return
+    }
+
     try {
+      setSubmitting(true)
+
       const payload = {
         items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
         points_to_use: pointsToUse,
       }
 
-      await createOrder(token, payload)
+      const order = await createOrder(token, payload)
+
+      // ✅ simulação de pagamento (por enquanto)
+      await confirmOrderPayment(token, order.id, "mpesa")
+
       clearCart()
       navigate("/account")
     } catch (err: any) {
@@ -66,6 +78,13 @@ export default function CheckoutPage() {
         return
       }
 
+      // ✅ se o backend devolver { detail: { detail: "Sem stock", items: [...] } }
+      if (Array.isArray(data?.detail?.items)) {
+        setStockDetails(data.detail.items)
+        setError("Sem stock em alguns produtos.")
+        return
+      }
+
       // ✅ fallback: se o texto mencionar stock
       if (looksLikeStockError(msg)) {
         setError(msg || "Sem stock em alguns produtos.")
@@ -73,6 +92,8 @@ export default function CheckoutPage() {
       }
 
       setError("Erro ao finalizar compra")
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -115,6 +136,7 @@ export default function CheckoutPage() {
             className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
             value={pointsToUse}
             onChange={(e) => setPointsToUse(Number(e.target.value))}
+            disabled={submitting}
           />
         </div>
 
@@ -142,9 +164,11 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-900 text-sm font-semibold hover:bg-emerald-400"
+          disabled={submitting}
+          className={`px-4 py-2 rounded-lg text-slate-900 text-sm font-semibold
+            ${submitting ? "bg-emerald-500/60 cursor-not-allowed" : "bg-emerald-500 hover:bg-emerald-400"}`}
         >
-          Confirmar compra
+          {submitting ? "A processar..." : "Confirmar compra"}
         </button>
       </form>
     </div>
