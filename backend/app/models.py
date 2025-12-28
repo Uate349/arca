@@ -11,15 +11,7 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
-# -----------------------------
-# ✅ JSON SAFE SERIALIZER (NÃO quebra DB)
-# -----------------------------
 class SerializerMixin:
-    """
-    Converte modelos SQLAlchemy para dict seguro para JSON.
-    - Decimal -> float
-    - datetime -> ISO string
-    """
     def to_dict(self):
         out = {}
         for col in self.__table__.columns:
@@ -62,6 +54,9 @@ class User(Base, SerializerMixin):
     referred_by_id = Column(String, ForeignKey("users.id"), nullable=True)
     referred_users = relationship("User", backref="referrer", remote_side=[id])
 
+    # ✅ NOVO (não quebra): consultor padrão do cliente
+    default_consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
+
     orders = relationship("Order", back_populates="user")
     commissions = relationship("CommissionRecord", back_populates="beneficiary")
     payouts = relationship("Payout", back_populates="user")
@@ -73,12 +68,12 @@ class Product(Base, SerializerMixin):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text)
-    price = Column(Numeric(10, 2), nullable=False)   # preço ao cliente
-    cost = Column(Numeric(10, 2), nullable=False)    # custo da ARCA
+    price = Column(Numeric(10, 2), nullable=False)
+    cost = Column(Numeric(10, 2), nullable=False)
     stock = Column(Integer, default=0)
     category = Column(String)
-    image_url = Column(String, nullable=True)        # foto
-    video_url = Column(String, nullable=True)        # vídeo (YouTube/URL)
+    image_url = Column(String, nullable=True)
+    video_url = Column(String, nullable=True)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -97,11 +92,16 @@ class Order(Base, SerializerMixin):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     status = Column(Enum(OrderStatus), default=OrderStatus.pending, nullable=False)
-    total_amount = Column(Numeric(10, 2), nullable=False)       # valor bruto
-    discount_amount = Column(Numeric(10, 2), default=0)         # desconto em pontos
+    total_amount = Column(Numeric(10, 2), nullable=False)
+    discount_amount = Column(Numeric(10, 2), default=0)
     points_used = Column(Integer, default=0)
     points_earned = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # ✅ NOVOS (não quebra)
+    paid_at = Column(DateTime, nullable=True)
+    consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
+    ref_source = Column(String, nullable=True)
 
     user = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order")
@@ -157,7 +157,15 @@ class CommissionRecord(Base, SerializerMixin):
     amount = Column(Numeric(10, 2), nullable=False)
     type = Column(Enum(CommissionType), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # ✅ antigo (mantém compat)
     paid = Column(Boolean, default=False)
+
+    # ✅ NOVOS (não quebra)
+    status = Column(String, nullable=False, default="pending")   # pending | eligible | locked | paid | void
+    rate = Column(Numeric(6, 4), nullable=True)
+    eligible_at = Column(DateTime, nullable=True)
+    payout_id = Column(String, ForeignKey("payouts.id"), nullable=True)
 
     beneficiary = relationship("User", back_populates="commissions")
     order = relationship("Order", back_populates="commissions")
@@ -176,7 +184,15 @@ class Payout(Base, SerializerMixin):
     period_start = Column(DateTime, nullable=False)
     period_end = Column(DateTime, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
+
+    # antigo
     status = Column(Enum(PayoutStatus), default=PayoutStatus.pending, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # ✅ NOVOS (não quebra)
+    paid_at = Column(DateTime, nullable=True)
+    method = Column(String, nullable=True)
+    reference = Column(String, nullable=True)
+    state = Column(String, nullable=False, default="generated")  # generated | paid
 
     user = relationship("User", back_populates="payouts")
