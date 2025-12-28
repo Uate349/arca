@@ -42,7 +42,11 @@ export default function ConsultantDashboardPage() {
 
   const paidTotal = useMemo(() => {
     const s = summary?.paid_total
-    return s != null ? Number(s) : commissions.filter((c) => c?.paid).reduce((sum, c) => sum + Number(c?.amount ?? 0), 0)
+    return s != null
+      ? Number(s)
+      : commissions
+          .filter((c) => c?.paid)
+          .reduce((sum, c) => sum + Number(c?.amount ?? 0), 0)
   }, [summary, commissions])
 
   const byStatus = summary?.by_status ?? {}
@@ -54,17 +58,22 @@ export default function ConsultantDashboardPage() {
       setError(null)
 
       try {
-        const [c, p, s] = await Promise.all([
+        // ✅ não deixa o summary derrubar o painel
+        const [c, p] = await Promise.all([
           fetchMyCommissions(token, { limit: 200, offset: 0 }),
           fetchMyPayouts(token, { limit: 200, offset: 0 }),
-          fetchMyCommissionSummary(token),
         ])
 
         setCommissions(Array.isArray(c) ? c : [])
         setPayouts(Array.isArray(p) ? p : [])
+
+        // ✅ summary agora é calculado sem endpoint extra
+        const s = await fetchMyCommissionSummary(token, { limit: 200, offset: 0 })
         setSummary(s ?? null)
       } catch (e: any) {
-        setError("Falha ao carregar o painel do consultor.")
+        // ✅ mostra erro real (ajuda a diagnosticar)
+        const msg = String(e?.message || "")
+        setError(msg ? `Falha ao carregar: ${msg}` : "Falha ao carregar o painel do consultor.")
       } finally {
         setLoading(false)
       }
@@ -92,9 +101,7 @@ export default function ConsultantDashboardPage() {
           </p>
         </div>
 
-        {loading ? (
-          <div className="text-xs text-slate-400">A carregar...</div>
-        ) : null}
+        {loading ? <div className="text-xs text-slate-400">A carregar...</div> : null}
       </div>
 
       {error && (
@@ -159,20 +166,17 @@ export default function ConsultantDashboardPage() {
                 <div>
                   <div>#{safeSlice(c.order_id, 8)}</div>
                   <div className="text-[10px] text-slate-500">
-                    Tipo: {String(c.type ?? "-")} • Status: {String(c.status ?? (c.paid ? "paid" : "pending"))}
+                    Tipo: {String(c.type ?? "-")} • Status:{" "}
+                    {String(c.status ?? (c.paid ? "paid" : "pending"))}
                   </div>
-                  <div className="text-[10px] text-slate-600">
-                    {c.created_at ? safeDate(c.created_at) : ""}
-                  </div>
+                  <div className="text-[10px] text-slate-600">{c.created_at ? safeDate(c.created_at) : ""}</div>
                 </div>
 
                 <div className="font-semibold text-emerald-400">{money(c.amount)} MT</div>
               </div>
             ))}
 
-            {commissions.length === 0 && (
-              <div className="text-slate-500">Nenhuma comissão ainda.</div>
-            )}
+            {commissions.length === 0 && <div className="text-slate-500">Nenhuma comissão ainda.</div>}
           </div>
         </div>
 
@@ -196,9 +200,7 @@ export default function ConsultantDashboardPage() {
               </div>
             ))}
 
-            {payouts.length === 0 && (
-              <div className="text-slate-500">Nenhum pagamento gerado ainda.</div>
-            )}
+            {payouts.length === 0 && <div className="text-slate-500">Nenhum pagamento gerado ainda.</div>}
           </div>
         </div>
       </div>
