@@ -15,7 +15,8 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="w-full flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3 bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900/40 border-b border-emerald-500/30 shadow-lg shadow-emerald-500/10">
+    <nav className="w-full bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900/40 border-b border-emerald-500/30 shadow-lg shadow-emerald-500/10 px-6 py-3 relative flex items-center justify-between">
+      
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3">
         <img src={ArcaLogo} alt="Arca" className="w-10 h-10 sm:w-12 sm:h-12 object-contain" />
@@ -27,18 +28,27 @@ export default function Navbar() {
         </div>
       </Link>
 
-      {/* Botão hamburguer para mobile */}
+      {/* Botão hamburguer (mobile) */}
       <button
-        className="sm:hidden mt-2 text-emerald-300 text-2xl focus:outline-none"
+        className="sm:hidden text-2xl text-emerald-300 focus:outline-none"
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? "✕" : "☰"}
       </button>
 
       {/* Links */}
-      <div className={`flex flex-col sm:flex-row sm:items-center gap-4 text-xs sm:text-sm mt-2 sm:mt-0 ${isOpen ? "flex" : "hidden sm:flex"}`}>
+      <div
+        className={`absolute top-full right-0 mt-1 w-40 bg-slate-900/90 backdrop-blur-sm rounded-md shadow-lg sm:static sm:flex sm:gap-4 sm:bg-transparent sm:backdrop-blur-0 sm:shadow-none ${
+          isOpen ? "flex flex-col p-2" : "hidden"
+        }`}
+      >
         {navLinks.map((link) => (
-          <Link key={link.to} to={link.to} className="hover:text-emerald-300" onClick={() => setIsOpen(false)}>
+          <Link
+            key={link.to}
+            to={link.to}
+            className="py-1 px-2 sm:py-0 sm:px-0 hover:text-emerald-300"
+            onClick={() => setIsOpen(false)}
+          >
             {link.label}
           </Link>
         ))}
