@@ -29,7 +29,8 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null)
   const [stockDetails, setStockDetails] = useState<any[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [deliveryAddress, setDeliveryAddress] = useState<any>(null) // <-- novo
+  const [deliveryAddress, setDeliveryAddress] = useState<any>(null) // endereço salvo
+  const [addressError, setAddressError] = useState<string | null>(null) // erros do endereço
   const navigate = useNavigate()
 
   const totalCalc = items.reduce((sum, i) => sum + Number(i.price) * Number(i.quantity), 0)
@@ -50,7 +51,7 @@ export default function CheckoutPage() {
     }
 
     if (!deliveryAddress) {
-      setError("Por favor, informe o endereço de entrega antes de confirmar a compra.")
+      setAddressError("Por favor, informe e salve o endereço de entrega antes de confirmar a compra.")
       return
     }
 
@@ -60,12 +61,12 @@ export default function CheckoutPage() {
       const payload = {
         items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
         points_to_use: pointsToUse,
-        delivery_address: deliveryAddress, // <-- envio do endereço
+        delivery_address: deliveryAddress,
       }
 
       const order = await createOrder(token, payload)
 
-      // ✅ simulação de pagamento (por enquanto)
+      // simulação de pagamento
       const amount = Number(order?.total_amount ?? totalCalc)
       await confirmOrderPayment(token, order.id, amount, "mpesa")
 
@@ -110,16 +111,43 @@ export default function CheckoutPage() {
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       <h1 className="text-2xl font-bold">Checkout</h1>
 
-      {/* ✅ Formulário de endereço */}
-      <DeliveryAddressForm onSave={(data) => setDeliveryAddress(data)} />
+      {/* Formulário de endereço */}
+      <DeliveryAddressForm
+        onSave={(data) => {
+          setDeliveryAddress(data)
+          setAddressError(null)
+        }}
+      />
 
-      {/* ✅ Resumo do carrinho */}
+      {/* Erro específico do endereço */}
+      {addressError && (
+        <div className="p-2 rounded bg-red-700/30 text-red-100 text-sm">
+          {addressError}
+        </div>
+      )}
+
+      {/* Resumo do endereço salvo */}
+      {deliveryAddress && (
+        <div className="p-4 border border-emerald-500/50 rounded bg-slate-900 text-slate-200">
+          <h3 className="font-bold mb-2">Endereço Salvo</h3>
+          <p><b>Código da Encomenda:</b> {deliveryAddress.orderCode}</p>
+          <p><b>Destinatário:</b> {deliveryAddress.recipientName}</p>
+          <p><b>País:</b> {deliveryAddress.country}</p>
+          <p><b>Província:</b> {deliveryAddress.province}</p>
+          <p><b>Distrito / Cidade:</b> {deliveryAddress.district}</p>
+          <p><b>Rua / Bairro:</b> {deliveryAddress.street}</p>
+          <p><b>Telefone:</b> {deliveryAddress.phone}</p>
+          {deliveryAddress.whatsapp && (
+            <p><b>WhatsApp:</b> {deliveryAddress.whatsapp}</p>
+          )}
+        </div>
+      )}
+
+      {/* Resumo do carrinho */}
       <div className="bg-slate-900 rounded-lg p-4 space-y-2">
         {items.map((i) => (
           <div key={i.product_id} className="flex justify-between text-sm">
-            <span>
-              {i.name} (x{i.quantity})
-            </span>
+            <span>{i.name} (x{i.quantity})</span>
             <span>{(Number(i.price) * Number(i.quantity)).toFixed(2)} MT</span>
           </div>
         ))}
@@ -130,7 +158,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* ✅ Pontos a usar */}
+      {/* Pontos a usar */}
       <div>
         <label className="text-xs text-slate-400 block mb-1">
           Pontos a usar (máx 30% do valor)
@@ -145,12 +173,11 @@ export default function CheckoutPage() {
         />
       </div>
 
-      {/* ✅ Erros */}
+      {/* Erros do checkout */}
       {error && (
         <div className="text-xs text-red-300">
           {error}
-
-          {stockDetails?.length ? (
+          {stockDetails?.length && (
             <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-red-200">
               <div className="font-semibold mb-1">Detalhes:</div>
               <ul className="list-disc pl-5 space-y-1">
@@ -162,11 +189,11 @@ export default function CheckoutPage() {
                 ))}
               </ul>
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
-      {/* ✅ Botão de confirmar compra */}
+      {/* Botão de confirmar compra */}
       <button
         onClick={(e) => handleSubmit(e)}
         disabled={submitting}
