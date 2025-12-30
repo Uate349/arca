@@ -1,44 +1,41 @@
-import { Link } from "react-router-dom"
-import { useMemo } from "react"
-import { useCart } from "../store/cartStore"
+import { Link } from "react-router-dom";
+import { useMemo } from "react";
+import { useCart } from "../store/cartStore";
 
 export default function CartPreviewSticky() {
-  const { items } = useCart()
+  const { items } = useCart();
 
   const count = useMemo(
     () => items.reduce((acc, it) => acc + (it.quantity || 0), 0),
     [items]
-  )
+  );
 
-  // ✅ subtotal calculado diretamente pelos itens (evita total=0 do store)
   const subtotal = useMemo(
     () => items.reduce((sum, it) => sum + Number(it.price) * Number(it.quantity || 0), 0),
     [items]
-  )
+  );
 
-  // ✅ não aparece se estiver vazio
-  if (!items || items.length === 0) return null
+  if (!items || items.length === 0) return null;
 
-  // ✅ mostra só alguns itens para não ficar gigante
-  const preview = items.slice(0, 4)
-  const remaining = items.length - preview.length
+  const preview = items.slice(0, 4);
+  const remaining = items.length - preview.length;
 
   return (
     <div className="fixed bottom-4 right-4 z-50 w-[360px] max-w-[92vw]">
-      <div className="bg-slate-950/95 backdrop-blur border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      <div className="bg-slate-950/95 backdrop-blur border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+        
         {/* Cabeçalho */}
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
           <div className="text-sm font-semibold">
             Carrinho <span className="text-slate-400 font-normal">• {count} item(ns)</span>
           </div>
-
           <Link to="/cart" className="text-xs text-emerald-400 hover:text-emerald-300">
             Abrir
           </Link>
         </div>
 
-        {/* Lista */}
-        <div className="px-4 py-3 space-y-2">
+        {/* Lista de itens com scroll */}
+        <div className="px-4 py-3 space-y-2 max-h-64 overflow-y-auto">
           {preview.map((it) => (
             <div key={it.product_id} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -47,7 +44,6 @@ export default function CartPreviewSticky() {
                   {Number(it.price).toFixed(2)} MT × {it.quantity}
                 </div>
               </div>
-
               <div className="text-sm font-semibold text-slate-200 shrink-0">
                 {(Number(it.price) * Number(it.quantity)).toFixed(2)} MT
               </div>
@@ -79,5 +75,5 @@ export default function CartPreviewSticky() {
         </div>
       </div>
     </div>
-  )
+  );
 }
