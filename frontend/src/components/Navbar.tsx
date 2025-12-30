@@ -49,8 +49,8 @@ export default function Navbar() {
         ))}
       </div>
 
-      {/* Carrinho */}
-      <div className="relative ml-4">
+      {/* Carrinho fixo no canto inferior direito */}
+      <div className="fixed bottom-4 right-4 z-50">
         <button
           className="relative text-2xl text-emerald-300 focus:outline-none"
           onClick={() => setIsCartOpen(!isCartOpen)}
@@ -65,7 +65,7 @@ export default function Navbar() {
 
         {/* Dropdown do carrinho */}
         {isCartOpen && (
-          <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-slate-950/95 backdrop-blur border border-slate-800 rounded-2xl shadow-xl overflow-hidden z-50 flex flex-col">
+          <div className="absolute bottom-full right-0 mb-2 w-80 max-w-[90vw] bg-slate-950/95 backdrop-blur border border-slate-800 rounded-2xl shadow-xl overflow-hidden z-50 flex flex-col">
             <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
               <span className="text-sm font-semibold">Carrinho</span>
               <span className="text-xs text-slate-400">{count} item(ns)</span>
