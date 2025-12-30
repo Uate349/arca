@@ -46,7 +46,7 @@ export default function App() {
           </Routes>
         </main>
 
-        {/* Preview do carrinho */}
+        {/* Preview do carrinho fixo e interativo */}
         <CartPreviewSticky />
       </div>
     </div>
