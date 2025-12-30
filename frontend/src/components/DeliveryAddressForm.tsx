@@ -1,60 +1,40 @@
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useEffect } from "react"
+import { useForm } from "react-hook-form"
 
 type AddressFormData = {
-  recipientName: string;
-  country: string;
-  province: string;
-  district: string;
-  street: string;
-  phone: string;
-  whatsapp?: string;
-};
+  recipientName: string
+  country: string
+  province: string
+  district: string
+  street: string
+  phone: string
+  whatsapp?: string
+}
 
 export default function DeliveryAddressForm({
   onSave,
 }: {
-  onSave: (data: AddressFormData & { orderCode: string }) => void;
+  onSave: (data: AddressFormData & { orderCode: string }) => void
 }) {
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors, isValid },
-  } = useForm<AddressFormData>({
-    mode: "onChange",
-    defaultValues: {
-      recipientName: "",
-      country: "",
-      province: "",
-      district: "",
-      street: "",
-      phone: "",
-      whatsapp: "",
-    },
-  });
+  } = useForm<AddressFormData>({ mode: "onChange" })
 
-  const [orderCode, setOrderCode] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [orderCode, setOrderCode] = useState("")
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    setOrderCode("ORD-" + Math.floor(100000 + Math.random() * 900000));
-  }, []);
+    setOrderCode("ORD-" + Math.floor(100000 + Math.random() * 900000))
+  }, [])
 
-  // Sempre que o utilizador mexer em qualquer campo → remove sucesso
-  useEffect(() => {
-    const sub = watch(() => setSuccess(false));
-    return () => sub.unsubscribe();
-  }, [watch]);
-
-  const formatPhone = (value: string) => value.replace(/\D/g, "").slice(0, 12);
+  const formatPhone = (v: string) => v.replace(/\D/g, "").slice(0, 12)
 
   const submitHandler = (data: AddressFormData) => {
-    if (!isValid) return;
-
-    onSave({ ...data, orderCode });
-    setSuccess(true);
-  };
+    onSave({ ...data, orderCode })
+    setSuccess(true)
+  }
 
   return (
     <form
@@ -78,17 +58,21 @@ export default function DeliveryAddressForm({
         ["province", "Província"],
         ["district", "Distrito / Cidade"],
         ["street", "Rua / Bairro"],
-      ].map(([key, label]) => (
-        <div key={key}>
+      ].map(([name, label]) => (
+        <div key={name}>
           <label className="block mb-1 font-semibold">{label}</label>
           <input
-            {...register(key as keyof AddressFormData, { required: "Campo obrigatório" })}
+            {...register(name as any, { required: "Campo obrigatório" })}
             className={`w-full p-2 rounded bg-slate-700 border ${
-              errors[key as keyof AddressFormData] ? "border-red-500" : "border-slate-600"
+              errors[name as keyof AddressFormData]
+                ? "border-red-500"
+                : "border-slate-600"
             }`}
           />
-          {errors[key as keyof AddressFormData] && (
-            <span className="text-red-500 text-sm">Campo obrigatório</span>
+          {errors[name as keyof AddressFormData] && (
+            <span className="text-red-500 text-sm">
+              {(errors[name as keyof AddressFormData] as any)?.message}
+            </span>
           )}
         </div>
       ))}
@@ -102,7 +86,6 @@ export default function DeliveryAddressForm({
             errors.phone ? "border-red-500" : "border-slate-600"
           }`}
         />
-        {errors.phone && <span className="text-red-500 text-sm">Número inválido</span>}
       </div>
 
       <div>
@@ -117,16 +100,16 @@ export default function DeliveryAddressForm({
       <button
         type="submit"
         disabled={!isValid}
-        className="w-full p-3 rounded bg-emerald-500 text-slate-900 font-bold hover:bg-emerald-400 disabled:opacity-40"
+        className="w-full p-3 rounded bg-emerald-500 text-slate-900 font-bold hover:bg-emerald-400 disabled:opacity-50"
       >
         Salvar e Continuar
       </button>
 
       {success && (
-        <div className="text-green-400 text-sm font-semibold">
+        <div className="text-green-400 text-sm font-medium">
           Endereço salvo com sucesso ✅
         </div>
       )}
     </form>
-  );
+  )
 }
