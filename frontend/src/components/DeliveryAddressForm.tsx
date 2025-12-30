@@ -16,11 +16,12 @@ export default function DeliveryAddressForm({
 }: {
   onSave: (data: AddressFormData & { orderCode: string }) => void;
 }) {
-  const { register, handleSubmit, formState } = useForm<AddressFormData>({
-    mode: "onChange",
-  });
+  const { register, handleSubmit, formState, setValue, trigger } =
+    useForm<AddressFormData>({
+      mode: "onChange",
+    });
 
-  const { errors, isValid } = formState;
+  const { errors } = formState;
   const [orderCode, setOrderCode] = useState("");
 
   useEffect(() => {
@@ -33,6 +34,12 @@ export default function DeliveryAddressForm({
   };
 
   const formatPhone = (value: string) => value.replace(/\D/g, "").slice(0, 12);
+
+  const handlePhoneChange = (field: "phone" | "whatsapp", value: string) => {
+    const formatted = formatPhone(value);
+    setValue(field, formatted);
+    trigger(field); // garante validação imediata
+  };
 
   return (
     <form
@@ -60,7 +67,9 @@ export default function DeliveryAddressForm({
           }`}
         />
         {errors.recipientName && (
-          <span className="text-red-500 text-sm">{errors.recipientName.message}</span>
+          <span className="text-red-500 text-sm">
+            {errors.recipientName.message}
+          </span>
         )}
       </div>
 
@@ -91,7 +100,9 @@ export default function DeliveryAddressForm({
       </div>
 
       <div className="mb-4">
-        <label className="block mb-1 font-semibold">Distrito / Município / Cidade</label>
+        <label className="block mb-1 font-semibold">
+          Distrito / Município / Cidade
+        </label>
         <input
           {...register("district", { required: "Campo obrigatório" })}
           className={`w-full p-2 rounded bg-slate-700 border ${
@@ -119,16 +130,17 @@ export default function DeliveryAddressForm({
       <div className="mb-4">
         <label className="block mb-1 font-semibold">Número de Telefone</label>
         <input
-          {...register("phone", { required: "Campo obrigatório", minLength: 7 })}
-          onChange={(e) => (e.target.value = formatPhone(e.target.value))}
+          {...register("phone", {
+            required: "Campo obrigatório",
+            minLength: { value: 7, message: "Número inválido" },
+          })}
+          onChange={(e) => handlePhoneChange("phone", e.target.value)}
           className={`w-full p-2 rounded bg-slate-700 border ${
             errors.phone ? "border-red-500" : "border-slate-600"
           }`}
         />
         {errors.phone && (
-          <span className="text-red-500 text-sm">
-            {errors.phone.type === "required" ? "Campo obrigatório" : "Número inválido"}
-          </span>
+          <span className="text-red-500 text-sm">{errors.phone.message}</span>
         )}
       </div>
 
@@ -136,15 +148,14 @@ export default function DeliveryAddressForm({
         <label className="block mb-1 font-semibold">WhatsApp (opcional)</label>
         <input
           {...register("whatsapp")}
-          onChange={(e) => (e.target.value = formatPhone(e.target.value))}
+          onChange={(e) => handlePhoneChange("whatsapp", e.target.value)}
           className="w-full p-2 rounded bg-slate-700 border border-slate-600"
         />
       </div>
 
       <button
         type="submit"
-        disabled={!isValid}
-        className="w-full p-3 rounded bg-emerald-500 text-slate-900 font-bold hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full p-3 rounded bg-emerald-500 text-slate-900 font-bold hover:bg-emerald-400"
       >
         Salvar e Continuar
       </button>
