@@ -6,6 +6,7 @@ import ArcaLogo from "../assets/arca-logo.png";
 export default function Navbar() {
   const { items } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const count = useMemo(
     () => items.reduce((acc, it) => acc + (it.quantity || 0), 0),
@@ -28,7 +29,7 @@ export default function Navbar() {
 
   return (
     <nav className="w-full flex items-center justify-between px-6 py-3 bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900/40 border-b border-emerald-500/30 shadow-lg shadow-emerald-500/10 relative">
-
+      
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3">
         <img src={ArcaLogo} alt="Arca" className="w-10 h-10 sm:w-12 sm:h-12 object-contain" />
@@ -40,7 +41,7 @@ export default function Navbar() {
         </div>
       </Link>
 
-      {/* Links */}
+      {/* Links desktop */}
       <div className="hidden sm:flex gap-4 text-xs sm:text-sm">
         {navLinks.map((link) => (
           <Link key={link.to} to={link.to} className="hover:text-emerald-300">
@@ -48,6 +49,30 @@ export default function Navbar() {
           </Link>
         ))}
       </div>
+
+      {/* Menu hamburguer mobile */}
+      <button
+        className="sm:hidden text-2xl text-emerald-300 focus:outline-none"
+        onClick={() => setIsMenuOpen(!isMenuOpen)}
+      >
+        {isMenuOpen ? "✕" : "☰"}
+      </button>
+
+      {/* Dropdown menu mobile */}
+      {isMenuOpen && (
+        <div className="absolute top-full right-0 mt-1 w-40 bg-slate-900/95 backdrop-blur-sm rounded-md shadow-lg sm:hidden flex flex-col p-2 z-40">
+          {navLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="py-1 px-2 hover:text-emerald-300"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Carrinho fixo no canto inferior direito */}
       <div className="fixed bottom-4 right-4 z-50">
