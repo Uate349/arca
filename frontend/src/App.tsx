@@ -9,9 +9,6 @@ import CheckoutPage from './pages/CheckoutPage';
 import AccountPage from './pages/AccountPage';
 import ConsultantDashboardPage from './pages/ConsultantDashboardPage';
 
-// ✅ Preview do carrinho (novo)
-import CartPreviewSticky from './components/CartPreviewSticky';
-
 // ✅ Admin (novo caminho + novas páginas)
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
@@ -45,9 +42,6 @@ export default function App() {
             <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
           </Routes>
         </main>
-
-        {/* Preview do carrinho fixo e interativo */}
-        <CartPreviewSticky />
       </div>
     </div>
   );
