@@ -15,8 +15,8 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="w-full bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900/40 border-b border-emerald-500/30 shadow-lg shadow-emerald-500/10 px-6 py-3 relative flex items-center justify-between">
-      
+    <nav className="w-full bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900/40 border-b border-emerald-500/30 shadow-lg shadow-emerald-500/10 px-6 py-3 flex items-center justify-between relative">
+
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3">
         <img src={ArcaLogo} alt="Arca" className="w-10 h-10 sm:w-12 sm:h-12 object-contain" />
@@ -28,31 +28,41 @@ export default function Navbar() {
         </div>
       </Link>
 
-      {/* Botão hamburguer (mobile) */}
-      <button
-        className="sm:hidden text-2xl text-emerald-300 focus:outline-none"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? "✕" : "☰"}
-      </button>
-
-      {/* Links */}
-      <div
-        className={`absolute top-full right-0 mt-1 w-40 bg-slate-900/90 backdrop-blur-sm rounded-md shadow-lg sm:static sm:flex sm:gap-4 sm:bg-transparent sm:backdrop-blur-0 sm:shadow-none ${
-          isOpen ? "flex flex-col p-2" : "hidden"
-        }`}
-      >
+      {/* Links Desktop */}
+      <div className="hidden sm:flex gap-4 text-xs sm:text-sm">
         {navLinks.map((link) => (
-          <Link
-            key={link.to}
-            to={link.to}
-            className="py-1 px-2 sm:py-0 sm:px-0 hover:text-emerald-300"
-            onClick={() => setIsOpen(false)}
-          >
+          <Link key={link.to} to={link.to} className="hover:text-emerald-300">
             {link.label}
           </Link>
         ))}
       </div>
+
+      {/* Botão hamburguer Mobile */}
+      <div className="sm:hidden">
+        <button
+          className="text-2xl text-emerald-300 focus:outline-none"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          {isOpen ? "✕" : "☰"}
+        </button>
+      </div>
+
+      {/* Menu dropdown Mobile */}
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-1 w-40 bg-slate-900/90 backdrop-blur-sm rounded-md shadow-lg flex flex-col p-2 sm:hidden">
+          {navLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="py-1 px-2 hover:text-emerald-300"
+              onClick={() => setIsOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
+
     </nav>
   );
 }
