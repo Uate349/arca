@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Any, Dict
 from decimal import Decimal
-from datetime import datetime
 
 from ..database import get_db
 from .. import models, schemas
@@ -13,8 +12,9 @@ from ..services.points_service import (
     adicionar_pontos,
     usar_pontos,
 )
-# ⚠️ Comissão perfeita: criar quando PAID (vamos mover para payments_routes)
-# from ..services.commissions_service import criar_comissoes_para_order
+
+from ..utils.pdf_generator import generate_order_pdf
+from ..utils.printer import print_pdf
 
 router = APIRouter()
 
@@ -38,20 +38,15 @@ def create_order(
     if not data.items:
         raise HTTPException(status_code=400, detail="Carrinho vazio")
 
-    # ✅ captura consultor (sem quebrar se schema ainda não tiver)
     consultant_id = getattr(data, "consultant_id", None)
     ref_source = getattr(data, "ref_source", None)
 
-    # ✅ Regra profissional (A): auto-venda do consultor
-    # Se não veio consultant_id e quem compra é consultor, assume ele mesmo.
     if not consultant_id and getattr(current, "role", None) == models.UserRole.consultant:
         consultant_id = current.id
 
-    # ✅ valida produtos e stock + calcula total
     total = Decimal("0.00")
     stock_issues: List[Dict[str, Any]] = []
 
-    # Guardar produtos numa cache local para evitar 2 queries por item
     products_by_id: Dict[str, models.Product] = {}
 
     for item in data.items:
@@ -83,12 +78,10 @@ def create_order(
         line_total = Decimal(product.price) * requested
         total += line_total
 
-    # ✅ se houver falta de stock, retorna 409 com details (frontend fica bonito)
     if stock_issues:
         _stock_conflict(stock_issues)
 
-    # ✅ cria order como PENDING (perfeito)
-    # (frontend não quebra: ele só precisa do pedido criado)
+    # Cria pedido como PENDING
     order = models.Order(
         user_id=current.id,
         status=models.OrderStatus.pending,
@@ -98,13 +91,10 @@ def create_order(
         points_earned=0,
         consultant_id=consultant_id,
         ref_source=ref_source,
-        # paid_at fica None até pagamento real
     )
     db.add(order)
     db.flush()  # gera ID
 
-    # ✅ cria items e baixa stock (mantendo teu comportamento atual)
-    # (perfeição completa: reservar/baixar só no paid — vamos acertar isso no payments_routes)
     for item in data.items:
         product = products_by_id[item.product_id]
         requested = int(item.quantity)
@@ -117,11 +107,9 @@ def create_order(
         )
         db.add(oi)
 
-        # baixa stock agora (mantendo compatibilidade com teu fluxo atual)
+        # baixa stock agora
         product.stock = int(product.stock or 0) - requested
 
-    # ✅ pontos (mantendo compatibilidade com teu fluxo atual)
-    # (perfeição: aplicar pontos e ganhar pontos no paid — vamos consolidar no payments_routes depois)
     max_points = calcular_max_desconto_pontos(current, total)
     points_to_use = min(int(max_points), int(data.points_to_use or 0))
     discount_amount = Decimal(points_to_use)
@@ -139,11 +127,22 @@ def create_order(
         adicionar_pontos(db, current, int(points_earned), "Pontos por compra", order.id)
         order.points_earned = int(points_earned)
 
-    # ✅ comissão perfeita NÃO nasce aqui (vai nascer no PAID, no payments_routes)
-    # criar_comissoes_para_order(db, order)
-
     db.commit()
     db.refresh(order)
+
+    # ✅ Geração do PDF do endereço e impressão
+    try:
+        order_dict = {
+            "id": order.id,
+            "delivery_address": data.delivery_address,  # assume que vem no schema OrderCreate
+            "items": [{"name": i.name, "quantity": i.quantity, "price": str(i.unit_price)} for i in order.order_items],
+            "total_amount": str(order.total_amount),
+        }
+        pdf_file = generate_order_pdf(order_dict)
+        print_pdf(pdf_file)
+    except Exception as e:
+        print(f"Erro ao gerar/imprimir PDF: {e}")
+
     return order
 
 
