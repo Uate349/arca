@@ -1,116 +1,74 @@
-import { useState, useEffect } from "react"
-import { useForm } from "react-hook-form"
+import { FormEvent, useState } from "react"
 
-type AddressFormData = {
-  recipientName: string
-  country: string
-  province: string
-  district: string
-  street: string
-  phone: string
-  whatsapp?: string
-}
+export default function DeliveryAddressForm({ onSave }: { onSave: (data: any) => void }) {
+  const [orderCode] = useState(`ORD-${Math.floor(100000 + Math.random() * 900000)}`)
+  const [recipientName, setRecipientName] = useState("")
+  const [country, setCountry] = useState("")
+  const [province, setProvince] = useState("")
+  const [district, setDistrict] = useState("")
+  const [street, setStreet] = useState("")
+  const [phone, setPhone] = useState("")
+  const [whatsapp, setWhatsapp] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
-export default function DeliveryAddressForm({
-  onSave,
-}: {
-  onSave: (data: AddressFormData & { orderCode: string }) => void
-}) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isValid },
-  } = useForm<AddressFormData>({ mode: "onChange" })
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
 
-  const [orderCode, setOrderCode] = useState("")
-  const [success, setSuccess] = useState(false)
+    if (!recipientName || !country || !province || !district || !street || !phone) {
+      setError("Preencha todos os campos obrigatórios.")
+      return
+    }
 
-  useEffect(() => {
-    setOrderCode("ORD-" + Math.floor(100000 + Math.random() * 900000))
-  }, [])
+    const data = {
+      orderCode,
+      recipientName,
+      country,
+      province,
+      district,
+      street,
+      phone,
+      whatsapp,
+    }
 
-  const formatPhone = (v: string) => v.replace(/\D/g, "").slice(0, 12)
-
-  const submitHandler = (data: AddressFormData) => {
-    onSave({ ...data, orderCode })
-    setSuccess(true)
+    onSave(data)
+    setError(null)
   }
 
   return (
-    <form
-      onSubmit={handleSubmit(submitHandler)}
-      className="max-w-lg mx-auto bg-slate-800 p-6 rounded-lg shadow-lg text-slate-200 space-y-4"
-    >
-      <h2 className="text-xl font-bold">Endereço de Entrega</h2>
+    <form onSubmit={handleSubmit} className="bg-slate-900 p-4 rounded-lg space-y-3">
+      <h3 className="font-semibold text-emerald-400">Endereço de Entrega</h3>
 
       <div>
-        <label className="block mb-1 font-semibold">Código da Encomenda</label>
-        <input
-          value={orderCode}
-          readOnly
-          className="w-full p-2 rounded bg-slate-700 border border-slate-600"
-        />
+        <label className="text-xs text-slate-400">Código da Encomenda</label>
+        <input value={orderCode} disabled className="w-full bg-slate-800 p-2 rounded" />
       </div>
 
-      {[
-        ["recipientName", "Nome do Destinatário"],
-        ["country", "País"],
-        ["province", "Província"],
-        ["district", "Distrito / Cidade"],
-        ["street", "Rua / Bairro"],
-      ].map(([name, label]) => (
-        <div key={name}>
-          <label className="block mb-1 font-semibold">{label}</label>
-          <input
-            {...register(name as any, { required: "Campo obrigatório" })}
-            className={`w-full p-2 rounded bg-slate-700 border ${
-              errors[name as keyof AddressFormData]
-                ? "border-red-500"
-                : "border-slate-600"
-            }`}
-          />
-          {errors[name as keyof AddressFormData] && (
-            <span className="text-red-500 text-sm">
-              {(errors[name as keyof AddressFormData] as any)?.message}
-            </span>
-          )}
-        </div>
-      ))}
+      <input placeholder="Nome do Destinatário" className="w-full bg-slate-800 p-2 rounded"
+        value={recipientName} onChange={(e) => setRecipientName(e.target.value)} />
 
-      <div>
-        <label className="block mb-1 font-semibold">Número de Telefone</label>
-        <input
-          {...register("phone", { required: "Campo obrigatório", minLength: 7 })}
-          onChange={(e) => (e.target.value = formatPhone(e.target.value))}
-          className={`w-full p-2 rounded bg-slate-700 border ${
-            errors.phone ? "border-red-500" : "border-slate-600"
-          }`}
-        />
-      </div>
+      <input placeholder="País" className="w-full bg-slate-800 p-2 rounded"
+        value={country} onChange={(e) => setCountry(e.target.value)} />
 
-      <div>
-        <label className="block mb-1 font-semibold">WhatsApp (opcional)</label>
-        <input
-          {...register("whatsapp")}
-          onChange={(e) => (e.target.value = formatPhone(e.target.value))}
-          className="w-full p-2 rounded bg-slate-700 border border-slate-600"
-        />
-      </div>
+      <input placeholder="Província" className="w-full bg-slate-800 p-2 rounded"
+        value={province} onChange={(e) => setProvince(e.target.value)} />
 
-      <button
-        type="submit"
-        disabled={!isValid}
-        className="w-full p-3 rounded bg-emerald-500 text-slate-900 font-bold hover:bg-emerald-400 disabled:opacity-50"
-      >
+      <input placeholder="Distrito / Cidade" className="w-full bg-slate-800 p-2 rounded"
+        value={district} onChange={(e) => setDistrict(e.target.value)} />
+
+      <input placeholder="Rua / Bairro" className="w-full bg-slate-800 p-2 rounded"
+        value={street} onChange={(e) => setStreet(e.target.value)} />
+
+      <input placeholder="Número de Telefone" className="w-full bg-slate-800 p-2 rounded"
+        value={phone} onChange={(e) => setPhone(e.target.value)} />
+
+      <input placeholder="WhatsApp (opcional)" className="w-full bg-slate-800 p-2 rounded"
+        value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+
+      {error && <div className="text-red-400 text-xs">{error}</div>}
+
+      <button type="submit" className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-4 py-2 rounded-lg font-semibold">
         Salvar e Continuar
       </button>
-
-      {success && (
-        <div className="text-green-400 text-sm font-medium">
-          Endereço salvo com sucesso ✅
-        </div>
-      )}
     </form>
   )
 }
-
