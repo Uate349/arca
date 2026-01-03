@@ -30,7 +30,7 @@ export default function CheckoutPage() {
   const [stockDetails, setStockDetails] = useState<any[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deliveryAddress, setDeliveryAddress] = useState<any>(null) // endereço salvo
-  const [addressError, setAddressError] = useState<string | null>(null) // erros do endereço
+  const [addressError, setAddressError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const totalCalc = items.reduce((sum, i) => sum + Number(i.price) * Number(i.quantity), 0)
@@ -51,7 +51,7 @@ export default function CheckoutPage() {
     }
 
     if (!deliveryAddress) {
-      setAddressError("Por favor, informe e salve o endereço de entrega antes de confirmar a compra.")
+      setAddressError("Informe e salve o endereço de entrega antes de confirmar a compra.")
       return
     }
 
@@ -64,11 +64,18 @@ export default function CheckoutPage() {
         delivery_address: deliveryAddress,
       }
 
+      // 1️⃣ Cria o pedido no backend
       const order = await createOrder(token, payload)
 
-      // simulação de pagamento
+      // 2️⃣ Cria PaymentIntent real (M-Pesa / Emola / banco) via backend
+      // Backend retorna reference, status inicial = pending
       const amount = Number(order?.total_amount ?? totalCalc)
-      await confirmOrderPayment(token, order.id, amount, "mpesa")
+      await confirmOrderPayment(token, order.id, amount, "mpesa") // ou "emola"
+
+      // 3️⃣ O backend ficará responsável por:
+      // - receber notificação do operador (webhook)
+      // - atualizar pedido para paid
+      // - gerar payouts e cortes automáticos
 
       clearCart()
       navigate("/account")
