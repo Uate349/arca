@@ -13,7 +13,7 @@ from ..services.points_service import (
     adicionar_pontos,
     usar_pontos,
 )
-from ..services.payout_service import gerar_payout_para_order  # serviço de payout
+from ..services.payouts_service import gerar_payout_para_order  # serviço de payout
 from ..utils.pdf_generator import generate_order_pdf
 from ..utils.printer import print_pdf
 from ..services.payments import criar_payment_intent, PaymentIntent
