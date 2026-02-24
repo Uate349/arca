@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,20 +19,24 @@ from .routers import (
     uploads_routes,
     commissions_routes,
     payments_routes,
-    admin,  # ✅ importado
+    admin,
 )
 from .services.payouts_service import gerar_payouts_periodo
 
 
-# cria tabelas
+# -----------------------------
+# criar tabelas
+# -----------------------------
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
 
-# 🔐 BOOTSTRAP DO ADMIN
+# -----------------------------
+# BOOTSTRAP DO ADMIN
+# -----------------------------
 @app.on_event("startup")
-def startup():
+def bootstrap_admin():
     db = SessionLocal()
     try:
         ensure_admin_exists(db)
@@ -40,11 +45,13 @@ def startup():
         db.close()
 
 
-# ✅ CORS (corrigido para não travar preflight)
+# -----------------------------
+# CORS
+# -----------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # depois podes restringir
-    allow_credentials=False,  # ✅ com "*" o certo é False
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -58,9 +65,6 @@ app.include_router(users_routes.router, prefix="/users", tags=["Users"])
 app.include_router(products_routes.router, prefix="/products", tags=["Products"])
 app.include_router(orders_routes.router, prefix="/orders", tags=["Orders"])
 
-# ✅ PAYOUTS: agora o prefix vem dentro do payouts_routes.py
-# router => prefix="/payouts"
-# admin_router => prefix="/admin/payouts"
 app.include_router(payouts_routes.router)
 if hasattr(payouts_routes, "admin_router"):
     app.include_router(payouts_routes.admin_router)
@@ -69,18 +73,18 @@ app.include_router(uploads_routes.router, prefix="/uploads", tags=["Uploads"])
 app.include_router(commissions_routes.router, prefix="/commissions", tags=["Commissions"])
 app.include_router(payments_routes.router, prefix="/payments", tags=["Payments"])
 
-# ✅ Admin endpoints (outros endpoints admin)
+# endpoints admin adicionais
 app.include_router(admin.router)
 
 
 # -----------------------------
-# servir media (imagens)
+# servir media
 # -----------------------------
 app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
 
 
 # -----------------------------
-# scheduler de payouts (ATIVO)
+# scheduler de payouts
 # -----------------------------
 scheduler = BackgroundScheduler()
 
@@ -112,3 +116,12 @@ def start_scheduler():
 def shutdown_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
+
+
+# -----------------------------
+# uvicorn runtime com PORT dinâmico
+# -----------------------------
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))  # fallback 10000 local
+    print(f"Aplicação rodando na porta: {port}")  # logs para Render
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
