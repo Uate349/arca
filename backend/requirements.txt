@@ -10,4 +10,9 @@ email-validator==2.2.0
 pydantic-settings==2.6.1
 python-multipart==0.0.9
 APScheduler==3.10.4
-reportlab==4.0.0   
+reportlab==4.0.0
+qrcode[pil]==7.4.2
+bcrypt==5.0.0
+cryptography==46.0.5
+python-dotenv==1.2.1
+pyyaml==6.0.3
