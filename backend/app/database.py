@@ -2,7 +2,11 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
 
-engine = create_engine(settings.DATABASE_URL, future=True)
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
+    future=True
+)
 
 @event.listens_for(engine, "connect")
 def _set_client_encoding(dbapi_connection, connection_record):
