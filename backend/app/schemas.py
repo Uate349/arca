@@ -4,16 +4,19 @@ from typing import List, Optional
 from pydantic import BaseModel, EmailStr
 from .models import UserRole, UserLevel, OrderStatus, CommissionType, PayoutStatus
 
-# ---------------- Users ----------------
+
+# Users
 class UserBase(BaseModel):
     name: str
     email: EmailStr
     phone: str
 
+
 class UserCreate(UserBase):
     password: str
     role: UserRole = UserRole.customer
     referred_by_id: Optional[str] = None
+
 
 class UserOut(UserBase):
     id: str
@@ -25,16 +28,19 @@ class UserOut(UserBase):
     class Config:
         from_attributes = True
 
-# ---------------- Auth ----------------
+
+# Auth
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
 
 class LoginData(BaseModel):
     email: EmailStr
     password: str
 
-# ---------------- Products ----------------
+
+# Products
 class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -46,8 +52,10 @@ class ProductBase(BaseModel):
     video_url: Optional[str] = None
     active: bool = True
 
+
 class ProductCreate(ProductBase):
     pass
+
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -60,6 +68,7 @@ class ProductUpdate(BaseModel):
     video_url: Optional[str] = None
     active: Optional[bool] = None
 
+
 class ProductOut(ProductBase):
     id: str
     created_at: datetime
@@ -67,14 +76,17 @@ class ProductOut(ProductBase):
     class Config:
         from_attributes = True
 
-# ---------------- Orders ----------------
+
+# Orders
 class OrderItemCreate(BaseModel):
     product_id: str
     quantity: int
 
+
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
     points_to_use: int = 0
+
 
 class OrderItemOut(BaseModel):
     id: str
@@ -84,6 +96,7 @@ class OrderItemOut(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class OrderOut(BaseModel):
     id: str
@@ -98,7 +111,8 @@ class OrderOut(BaseModel):
     class Config:
         from_attributes = True
 
-# ---------------- Commissions & Payouts ----------------
+
+# Commissions & payouts
 class CommissionRecordOut(BaseModel):
     id: str
     order_id: str
@@ -110,6 +124,7 @@ class CommissionRecordOut(BaseModel):
     class Config:
         from_attributes = True
 
+
 class PayoutOut(BaseModel):
     id: str
     period_start: datetime
@@ -120,17 +135,3 @@ class PayoutOut(BaseModel):
 
     class Config:
         from_attributes = True
-
-# ---------------- NOVOS SCHEMAS - Webhook Pagamento Real ----------------
-class PaymentWebhookIn(BaseModel):
-    order_id: str               # Código do pedido enviado pelo operador
-    amount_paid: Decimal        # Valor pago pelo cliente
-    account_number: str         # Conta empresarial que recebeu o pagamento
-    method: str                 # "mpesa" ou "emola"
-    reference: Optional[str] = None  # Código de referência do pagamento
-
-class PaymentWebhookOut(BaseModel):
-    message: str
-    order_id: str
-    amount_to_admin: Decimal
-    amount_to_system: Decimal

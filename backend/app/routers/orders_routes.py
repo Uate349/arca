@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Any, Dict
 from decimal import Decimal
-from datetime import datetime
 
 from ..database import get_db
 from .. import models, schemas
@@ -13,18 +12,16 @@ from ..services.points_service import (
     adicionar_pontos,
     usar_pontos,
 )
-from ..services.payout_service import gerar_payout_para_order  # serviço de payout
+
 from ..utils.pdf_generator import generate_order_pdf
 from ..utils.printer import print_pdf
-from ..services.payments import criar_payment_intent, PaymentIntent
 
 router = APIRouter()
 
 
-# ---------------- FUNÇÕES AUX ----------------
-def _stock_conflict(items: List[dict]):
+def _stock_conflict(items: List[Dict[str, Any]]):
     """
-    Resposta consistente e amigável para frontend em caso de falta de stock.
+    Resposta consistente e amigável para frontend.
     """
     raise HTTPException(
         status_code=409,
@@ -32,7 +29,6 @@ def _stock_conflict(items: List[dict]):
     )
 
 
-# ---------------- CRIAÇÃO DE PEDIDO ----------------
 @router.post("/", response_model=schemas.OrderOut)
 def create_order(
     data: schemas.OrderCreate,
@@ -42,25 +38,34 @@ def create_order(
     if not data.items:
         raise HTTPException(status_code=400, detail="Carrinho vazio")
 
-    total = Decimal("0.00")
-    stock_issues: List[dict] = []
-    products_by_id = {}
+    consultant_id = getattr(data, "consultant_id", None)
+    ref_source = getattr(data, "ref_source", None)
 
-    # valida stock e calcula total
+    if not consultant_id and getattr(current, "role", None) == models.UserRole.consultant:
+        consultant_id = current.id
+
+    total = Decimal("0.00")
+    stock_issues: List[Dict[str, Any]] = []
+
+    products_by_id: Dict[str, models.Product] = {}
+
     for item in data.items:
         product = db.query(models.Product).filter(
             models.Product.id == item.product_id,
             models.Product.active == True
         ).first()
+
         if not product:
             raise HTTPException(status_code=404, detail=f"Produto {item.product_id} não encontrado")
 
         products_by_id[item.product_id] = product
-        requested = int(item.quantity)
+
+        requested = int(item.quantity or 0)
         available = int(product.stock or 0)
 
         if requested <= 0:
             raise HTTPException(status_code=400, detail="Quantidade inválida")
+
         if available < requested:
             stock_issues.append({
                 "product_id": product.id,
@@ -70,12 +75,13 @@ def create_order(
             })
             continue
 
-        total += Decimal(product.price) * requested
+        line_total = Decimal(product.price) * requested
+        total += line_total
 
     if stock_issues:
         _stock_conflict(stock_issues)
 
-    # Criação do pedido como PENDING
+    # Cria pedido como PENDING
     order = models.Order(
         user_id=current.id,
         status=models.OrderStatus.pending,
@@ -83,23 +89,27 @@ def create_order(
         discount_amount=Decimal("0.00"),
         points_used=0,
         points_earned=0,
+        consultant_id=consultant_id,
+        ref_source=ref_source,
     )
     db.add(order)
-    db.flush()
+    db.flush()  # gera ID
 
-    # Cria os itens do pedido e baixa stock
     for item in data.items:
         product = products_by_id[item.product_id]
         requested = int(item.quantity)
-        db.add(models.OrderItem(
+
+        oi = models.OrderItem(
             order_id=order.id,
             product_id=product.id,
             quantity=requested,
-            unit_price=product.price
-        ))
+            unit_price=product.price,
+        )
+        db.add(oi)
+
+        # baixa stock agora
         product.stock = int(product.stock or 0) - requested
 
-    # Pontos do cliente
     max_points = calcular_max_desconto_pontos(current, total)
     points_to_use = min(int(max_points), int(data.points_to_use or 0))
     discount_amount = Decimal(points_to_use)
@@ -109,8 +119,10 @@ def create_order(
 
     order.discount_amount = discount_amount
     order.points_used = points_to_use
+
     payable = total - discount_amount
     points_earned = calcular_pontos_ganhos(current, payable)
+
     if points_earned and int(points_earned) > 0:
         adicionar_pontos(db, current, int(points_earned), "Pontos por compra", order.id)
         order.points_earned = int(points_earned)
@@ -118,13 +130,12 @@ def create_order(
     db.commit()
     db.refresh(order)
 
-    # PDF do pedido
+    # ✅ Geração do PDF do endereço e impressão
     try:
         order_dict = {
             "id": order.id,
-            "delivery_address": getattr(data, "delivery_address", None),
-            "items": [{"name": i.product.name, "quantity": i.quantity, "price": str(i.unit_price)}
-                      for i in order.items],
+            "delivery_address": data.delivery_address,  # assume que vem no schema OrderCreate
+            "items": [{"name": i.name, "quantity": i.quantity, "price": str(i.unit_price)} for i in order.order_items],
             "total_amount": str(order.total_amount),
         }
         pdf_file = generate_order_pdf(order_dict)
@@ -135,82 +146,15 @@ def create_order(
     return order
 
 
-# ---------------- MINHAS ORDENS ----------------
 @router.get("/me", response_model=List[schemas.OrderOut])
-def my_orders(db: Session = Depends(get_db), current=Depends(get_current_user)):
-    orders = db.query(models.Order).filter(models.Order.user_id == current.id)\
-        .order_by(models.Order.created_at.desc()).all()
-    return orders
-
-
-# ---------------- CONFIRMAÇÃO DE PAGAMENTO ----------------
-@router.post("/{order_id}/confirm_payment", response_model=schemas.OrderOut)
-def confirm_payment(
-    order_id: str,
-    amount: Decimal,
-    method: str,
+def my_orders(
     db: Session = Depends(get_db),
     current=Depends(get_current_user),
 ):
-    order = db.query(models.Order).filter(models.Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
-
-    if order.status == models.OrderStatus.paid:
-        return order  # já pago
-
-    # criar PaymentIntent (stub real)
-    intent = criar_payment_intent(amount, method)
-    intent.status = "confirmed"  # simulação imediata, em prod webhook atualiza
-
-    if intent.status != "confirmed":
-        raise HTTPException(status_code=400, detail="Pagamento não confirmado")
-
-    # atualiza pedido
-    order.status = models.OrderStatus.paid
-    order.paid_at = datetime.utcnow()
-    db.commit()
-    db.refresh(order)
-
-    # gerar payout automático
-    gerar_payout_para_order(db, order)
-
-    return order
-
-
-# ---------------- WEBHOOK OPERADOR ----------------
-@router.post("/webhook", response_model=schemas.PaymentWebhookOut)
-def payment_webhook(data: schemas.PaymentWebhookIn, db: Session = Depends(get_db)):
-    # busca pedido
-    order = db.query(models.Order).filter(models.Order.id == data.order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
-
-    if order.status == models.OrderStatus.paid:
-        return schemas.PaymentWebhookOut(
-            message="Pedido já pago",
-            order_id=order.id,
-            amount_to_admin=Decimal("0.00"),
-            amount_to_system=Decimal("0.00")
-        )
-
-    # valida valor pago
-    esperado = order.total_amount - order.discount_amount
-    if data.amount_paid != esperado:
-        raise HTTPException(status_code=400, detail=f"Valor recebido ({data.amount_paid}) diferente do esperado ({esperado})")
-
-    # atualiza status do pedido
-    order.status = models.OrderStatus.paid
-    order.paid_at = datetime.utcnow()
-    db.commit()
-    db.refresh(order)
-
-    # gerar payout automático
-    payout = gerar_payout_para_order(db, order)
-
-    return schemas.PaymentWebhookOut(
-        message="Pagamento confirmado via operador",
-        order_id=order.id,
-        amount_to_admin=payout.amount if payout else Decimal("0.00"),
-        amount_to_system=payout.amount if payout else Decimal("0.00")
+    orders = (
+        db.query(models.Order)
+        .filter(models.Order.user_id == current.id)
+        .order_by(models.Order.created_at.desc())
+        .all()
     )
+    return orders
