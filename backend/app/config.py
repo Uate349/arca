@@ -2,16 +2,18 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "ARkA E-commerce"
+    PROJECT_NAME: str = "ARCA E-commerce"
 
-    # ❌ SEM valor default
+    # 🔥 Obrigatório vir do ambiente (Render / .env)
     DATABASE_URL: str
 
+    # 🔐 Segurança
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # 📁 Media
     MEDIA_DIR: str = "media"
-    PORT: int = 10000
 
     class Config:
         env_file = ".env"
