@@ -4,12 +4,24 @@ import enum
 from decimal import Decimal
 
 from sqlalchemy import (
-    Column, String, DateTime, Integer, ForeignKey, Numeric, Boolean, Enum, Text
+    Column,
+    String,
+    DateTime,
+    Integer,
+    ForeignKey,
+    Numeric,
+    Boolean,
+    Enum,
+    Text,
 )
 from sqlalchemy.orm import relationship
 
 from .database import Base
 
+
+# =====================================================
+# Utils
+# =====================================================
 
 class SerializerMixin:
     def to_dict(self):
@@ -25,6 +37,10 @@ class SerializerMixin:
         return out
 
 
+# =====================================================
+# Enums
+# =====================================================
+
 class UserRole(str, enum.Enum):
     customer = "customer"
     consultant = "consultant"
@@ -38,6 +54,38 @@ class UserLevel(str, enum.Enum):
     ouro = "ouro"
 
 
+class OrderStatus(str, enum.Enum):
+    pending = "pending"
+    paid = "paid"
+    shipped = "shipped"
+    completed = "completed"
+    canceled = "canceled"
+
+
+class PointsType(str, enum.Enum):
+    earn = "earn"
+    redeem = "redeem"
+    expire = "expire"
+    adjust = "adjust"
+
+
+class CommissionType(str, enum.Enum):
+    consultant = "consultant"
+    upline_level1 = "upline_level1"
+    upline_level2 = "upline_level2"
+    upline_level3 = "upline_level3"
+    staff_pool = "staff_pool"
+
+
+class PayoutStatus(str, enum.Enum):
+    pending = "pending"
+    processed = "processed"
+
+
+# =====================================================
+# Models
+# =====================================================
+
 class User(Base, SerializerMixin):
     __tablename__ = "users"
 
@@ -46,20 +94,66 @@ class User(Base, SerializerMixin):
     email = Column(String, unique=True, index=True, nullable=False)
     phone = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+
     role = Column(Enum(UserRole), default=UserRole.customer, nullable=False)
     level = Column(Enum(UserLevel), default=UserLevel.bronze, nullable=False)
+
     points_balance = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # -----------------------------
+    # Auto-relacionamentos (User -> User)
+    # -----------------------------
     referred_by_id = Column(String, ForeignKey("users.id"), nullable=True)
-    referred_users = relationship("User", backref="referrer", remote_side=[id])
-
-    # ✅ NOVO (não quebra): consultor padrão do cliente
     default_consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
 
-    orders = relationship("Order", back_populates="user")
-    commissions = relationship("CommissionRecord", back_populates="beneficiary")
-    payouts = relationship("Payout", back_populates="user")
+    # Quem indicou este utilizador
+    referred_by = relationship(
+        "User",
+        remote_side=[id],
+        foreign_keys=[referred_by_id],
+        back_populates="referred_users",
+    )
+
+    # Utilizadores indicados por este utilizador
+    referred_users = relationship(
+        "User",
+        foreign_keys=[referred_by_id],
+        back_populates="referred_by",
+    )
+
+    # Consultor padrão do cliente
+    default_consultant = relationship(
+        "User",
+        foreign_keys=[default_consultant_id],
+    )
+
+    # -----------------------------
+    # Relações com outras tabelas
+    # -----------------------------
+
+    # Pedidos feitos pelo utilizador (Order.user_id)
+    orders = relationship(
+        "Order",
+        foreign_keys="Order.user_id",
+        back_populates="user",
+    )
+
+    # Pedidos onde o utilizador atua como consultor (Order.consultant_id)
+    consulted_orders = relationship(
+        "Order",
+        foreign_keys="Order.consultant_id",
+    )
+
+    commissions = relationship(
+        "CommissionRecord",
+        back_populates="beneficiary",
+    )
+
+    payouts = relationship(
+        "Payout",
+        back_populates="user",
+    )
 
 
 class Product(Base, SerializerMixin):
@@ -78,34 +172,49 @@ class Product(Base, SerializerMixin):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class OrderStatus(str, enum.Enum):
-    pending = "pending"
-    paid = "paid"
-    shipped = "shipped"
-    completed = "completed"
-    canceled = "canceled"
-
-
 class Order(Base, SerializerMixin):
     __tablename__ = "orders"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # FK principal (cliente)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
+    # FK secundária (consultor)
+    consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
+
     status = Column(Enum(OrderStatus), default=OrderStatus.pending, nullable=False)
     total_amount = Column(Numeric(10, 2), nullable=False)
     discount_amount = Column(Numeric(10, 2), default=0)
     points_used = Column(Integer, default=0)
     points_earned = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
-    # ✅ NOVOS (não quebra)
+    created_at = Column(DateTime, default=datetime.utcnow)
     paid_at = Column(DateTime, nullable=True)
-    consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
+
     ref_source = Column(String, nullable=True)
 
-    user = relationship("User", back_populates="orders")
-    items = relationship("OrderItem", back_populates="order")
-    commissions = relationship("CommissionRecord", back_populates="order")
+    # Relações explícitas (SEM ambiguidade)
+    user = relationship(
+        "User",
+        foreign_keys=[user_id],
+        back_populates="orders",
+    )
+
+    consultant = relationship(
+        "User",
+        foreign_keys=[consultant_id],
+    )
+
+    items = relationship(
+        "OrderItem",
+        back_populates="order",
+    )
+
+    commissions = relationship(
+        "CommissionRecord",
+        back_populates="order",
+    )
 
 
 class OrderItem(Base, SerializerMixin):
@@ -114,18 +223,16 @@ class OrderItem(Base, SerializerMixin):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     order_id = Column(String, ForeignKey("orders.id"), nullable=False)
     product_id = Column(String, ForeignKey("products.id"), nullable=False)
+
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(10, 2), nullable=False)
 
-    order = relationship("Order", back_populates="items")
+    order = relationship(
+        "Order",
+        back_populates="items",
+    )
+
     product = relationship("Product")
-
-
-class PointsType(str, enum.Enum):
-    earn = "earn"
-    redeem = "redeem"
-    expire = "expire"
-    adjust = "adjust"
 
 
 class PointsTransaction(Base, SerializerMixin):
@@ -133,19 +240,13 @@ class PointsTransaction(Base, SerializerMixin):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
     type = Column(Enum(PointsType), nullable=False)
     points = Column(Integer, nullable=False)
     description = Column(String)
+
     order_id = Column(String, ForeignKey("orders.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class CommissionType(str, enum.Enum):
-    consultant = "consultant"
-    upline_level1 = "upline_level1"
-    upline_level2 = "upline_level2"
-    upline_level3 = "upline_level3"
-    staff_pool = "staff_pool"
 
 
 class CommissionRecord(Base, SerializerMixin):
@@ -154,26 +255,30 @@ class CommissionRecord(Base, SerializerMixin):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     beneficiary_id = Column(String, ForeignKey("users.id"), nullable=False)
     order_id = Column(String, ForeignKey("orders.id"), nullable=False)
+
     amount = Column(Numeric(10, 2), nullable=False)
     type = Column(Enum(CommissionType), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # ✅ antigo (mantém compat)
+    # Compatibilidade antiga
     paid = Column(Boolean, default=False)
 
-    # ✅ NOVOS (não quebra)
-    status = Column(String, nullable=False, default="pending")   # pending | eligible | locked | paid | void
+    # Novos campos
+    status = Column(String, nullable=False, default="pending")
     rate = Column(Numeric(6, 4), nullable=True)
     eligible_at = Column(DateTime, nullable=True)
+
     payout_id = Column(String, ForeignKey("payouts.id"), nullable=True)
 
-    beneficiary = relationship("User", back_populates="commissions")
-    order = relationship("Order", back_populates="commissions")
+    beneficiary = relationship(
+        "User",
+        back_populates="commissions",
+    )
 
-
-class PayoutStatus(str, enum.Enum):
-    pending = "pending"
-    processed = "processed"
+    order = relationship(
+        "Order",
+        back_populates="commissions",
+    )
 
 
 class Payout(Base, SerializerMixin):
@@ -181,18 +286,20 @@ class Payout(Base, SerializerMixin):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
     period_start = Column(DateTime, nullable=False)
     period_end = Column(DateTime, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
 
-    # antigo
     status = Column(Enum(PayoutStatus), default=PayoutStatus.pending, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # ✅ NOVOS (não quebra)
     paid_at = Column(DateTime, nullable=True)
     method = Column(String, nullable=True)
     reference = Column(String, nullable=True)
-    state = Column(String, nullable=False, default="generated")  # generated | paid
+    state = Column(String, nullable=False, default="generated")
 
-    user = relationship("User", back_populates="payouts")
+    user = relationship(
+        "User",
+        back_populates="payouts",
+    )

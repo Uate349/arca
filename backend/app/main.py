@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from .database import engine, Base, SessionLocal
+from .database import SessionLocal
 from .config import settings
 from .bootstrap_admin import ensure_admin_exists
 from .routers import (
@@ -18,49 +18,38 @@ from .routers import (
     uploads_routes,
     commissions_routes,
     payments_routes,
-    admin,  # ✅ importado
+    admin,
 )
 from .services.payouts_service import gerar_payouts_periodo
 
 
-# cria tabelas
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title=settings.PROJECT_NAME)
 
-
-# 🔐 BOOTSTRAP DO ADMIN
-@app.on_event("startup")
-def startup():
-    db = SessionLocal()
-    try:
-        ensure_admin_exists(db)
-        db.commit()
-    finally:
-        db.close()
-
-
-# ✅ CORS (corrigido para não travar preflight)
+# =========================================================
+# ✅ CORS (CORRIGIDO – LOCAL + RENDER)
+# =========================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # depois podes restringir
-    allow_credentials=False,  # ✅ com "*" o certo é False
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        # quando tiveres frontend em produção, adicionas aqui
+        # "https://teu-frontend.onrender.com",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# -----------------------------
-# routers
-# -----------------------------
+# =========================================================
+# Routers
+# =========================================================
 app.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
 app.include_router(users_routes.router, prefix="/users", tags=["Users"])
 app.include_router(products_routes.router, prefix="/products", tags=["Products"])
 app.include_router(orders_routes.router, prefix="/orders", tags=["Orders"])
 
-# ✅ PAYOUTS: agora o prefix vem dentro do payouts_routes.py
-# router => prefix="/payouts"
-# admin_router => prefix="/admin/payouts"
+# payouts (prefix definido dentro do router)
 app.include_router(payouts_routes.router)
 if hasattr(payouts_routes, "admin_router"):
     app.include_router(payouts_routes.admin_router)
@@ -69,19 +58,17 @@ app.include_router(uploads_routes.router, prefix="/uploads", tags=["Uploads"])
 app.include_router(commissions_routes.router, prefix="/commissions", tags=["Commissions"])
 app.include_router(payments_routes.router, prefix="/payments", tags=["Payments"])
 
-# ✅ Admin endpoints (outros endpoints admin)
+# admin geral
 app.include_router(admin.router)
 
-
-# -----------------------------
-# servir media (imagens)
-# -----------------------------
+# =========================================================
+# Media
+# =========================================================
 app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
 
-
-# -----------------------------
-# scheduler de payouts (ATIVO)
-# -----------------------------
+# =========================================================
+# Scheduler
+# =========================================================
 scheduler = BackgroundScheduler()
 
 
@@ -96,8 +83,20 @@ def job_payouts():
         db.close()
 
 
+# =========================================================
+# Startup / Shutdown
+# =========================================================
 @app.on_event("startup")
-def start_scheduler():
+def startup():
+    # --- bootstrap admin ---
+    db = SessionLocal()
+    try:
+        ensure_admin_exists(db)
+        db.commit()
+    finally:
+        db.close()
+
+    # --- scheduler ---
     scheduler.add_job(
         job_payouts,
         "interval",
@@ -109,6 +108,6 @@ def start_scheduler():
 
 
 @app.on_event("shutdown")
-def shutdown_scheduler():
+def shutdown():
     if scheduler.running:
         scheduler.shutdown(wait=False)
