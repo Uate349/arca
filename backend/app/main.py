@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,49 +24,6 @@ from .routers import (
 from .services.payouts_service import gerar_payouts_periodo
 
 
-app = FastAPI(title=settings.PROJECT_NAME)
-
-# =========================================================
-# ✅ CORS (CORRIGIDO – LOCAL + RENDER)
-# =========================================================
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        # quando tiveres frontend em produção, adicionas aqui
-        # "https://teu-frontend.onrender.com",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# =========================================================
-# Routers
-# =========================================================
-app.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
-app.include_router(users_routes.router, prefix="/users", tags=["Users"])
-app.include_router(products_routes.router, prefix="/products", tags=["Products"])
-app.include_router(orders_routes.router, prefix="/orders", tags=["Orders"])
-
-# payouts (prefix definido dentro do router)
-app.include_router(payouts_routes.router)
-if hasattr(payouts_routes, "admin_router"):
-    app.include_router(payouts_routes.admin_router)
-
-app.include_router(uploads_routes.router, prefix="/uploads", tags=["Uploads"])
-app.include_router(commissions_routes.router, prefix="/commissions", tags=["Commissions"])
-app.include_router(payments_routes.router, prefix="/payments", tags=["Payments"])
-
-# admin geral
-app.include_router(admin.router)
-
-# =========================================================
-# Media
-# =========================================================
-app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
-
 # =========================================================
 # Scheduler
 # =========================================================
@@ -84,10 +42,10 @@ def job_payouts():
 
 
 # =========================================================
-# Startup / Shutdown
+# Lifespan (Startup / Shutdown)
 # =========================================================
-@app.on_event("startup")
-def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     # --- bootstrap admin ---
     db = SessionLocal()
     try:
@@ -106,8 +64,61 @@ def startup():
     )
     scheduler.start()
 
+    yield  # ⬅️ importante
 
-@app.on_event("shutdown")
-def shutdown():
+    # --- shutdown ---
     if scheduler.running:
         scheduler.shutdown(wait=False)
+
+
+# =========================================================
+# App
+# =========================================================
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    lifespan=lifespan,
+)
+
+
+# =========================================================
+# CORS
+# =========================================================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# =========================================================
+# Routers
+# =========================================================
+app.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
+app.include_router(users_routes.router, prefix="/users", tags=["Users"])
+app.include_router(products_routes.router, prefix="/products", tags=["Products"])
+app.include_router(orders_routes.router, prefix="/orders", tags=["Orders"])
+
+# payouts (rotas normais, NÃO admin)
+app.include_router(payouts_routes.router)
+
+app.include_router(uploads_routes.router, prefix="/uploads", tags=["Uploads"])
+app.include_router(commissions_routes.router, prefix="/commissions", tags=["Commissions"])
+app.include_router(payments_routes.router, prefix="/payments", tags=["Payments"])
+
+# admin (ÚNICO ponto para rotas admin)
+app.include_router(admin.router)
+
+
+# =========================================================
+# Media
+# =========================================================
+app.mount(
+    "/media",
+    StaticFiles(directory=settings.MEDIA_DIR),
+    name="media",
+)

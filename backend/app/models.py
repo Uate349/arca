@@ -107,7 +107,6 @@ class User(Base, SerializerMixin):
     referred_by_id = Column(String, ForeignKey("users.id"), nullable=True)
     default_consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
 
-    # Quem indicou este utilizador
     referred_by = relationship(
         "User",
         remote_side=[id],
@@ -115,14 +114,12 @@ class User(Base, SerializerMixin):
         back_populates="referred_users",
     )
 
-    # Utilizadores indicados por este utilizador
     referred_users = relationship(
         "User",
         foreign_keys=[referred_by_id],
         back_populates="referred_by",
     )
 
-    # Consultor padrão do cliente
     default_consultant = relationship(
         "User",
         foreign_keys=[default_consultant_id],
@@ -132,17 +129,17 @@ class User(Base, SerializerMixin):
     # Relações com outras tabelas
     # -----------------------------
 
-    # Pedidos feitos pelo utilizador (Order.user_id)
     orders = relationship(
         "Order",
         foreign_keys="Order.user_id",
         back_populates="user",
     )
 
-    # Pedidos onde o utilizador atua como consultor (Order.consultant_id)
+    # ✅ CORRIGIDO (ligado corretamente)
     consulted_orders = relationship(
         "Order",
         foreign_keys="Order.consultant_id",
+        back_populates="consultant",
     )
 
     commissions = relationship(
@@ -177,10 +174,7 @@ class Order(Base, SerializerMixin):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    # FK principal (cliente)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
-
-    # FK secundária (consultor)
     consultant_id = Column(String, ForeignKey("users.id"), nullable=True)
 
     status = Column(Enum(OrderStatus), default=OrderStatus.pending, nullable=False)
@@ -194,16 +188,17 @@ class Order(Base, SerializerMixin):
 
     ref_source = Column(String, nullable=True)
 
-    # Relações explícitas (SEM ambiguidade)
     user = relationship(
         "User",
         foreign_keys=[user_id],
         back_populates="orders",
     )
 
+    # ✅ CORRIGIDO (ligado corretamente)
     consultant = relationship(
         "User",
         foreign_keys=[consultant_id],
+        back_populates="consulted_orders",
     )
 
     items = relationship(
@@ -260,10 +255,8 @@ class CommissionRecord(Base, SerializerMixin):
     type = Column(Enum(CommissionType), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Compatibilidade antiga
     paid = Column(Boolean, default=False)
 
-    # Novos campos
     status = Column(String, nullable=False, default="pending")
     rate = Column(Numeric(6, 4), nullable=True)
     eligible_at = Column(DateTime, nullable=True)

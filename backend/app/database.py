@@ -1,7 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+# =========================================================
 # SQLite LOCAL (desenvolvimento)
+# =========================================================
 DATABASE_URL = "sqlite:///./dev.db"
 
 engine = create_engine(
@@ -17,10 +19,21 @@ SessionLocal = sessionmaker(
 
 Base = declarative_base()
 
-# 👉 ESTA FUNÇÃO É USADA PELOS ROUTERS
+
+# =========================================================
+# DEPENDÊNCIA PARA OS ROUTERS
+# =========================================================
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+# =========================================================
+# ⚠️ IMPORTAR MODELS E CRIAR TABELAS
+# =========================================================
+from .models import User  # ✅ CORRETO (models.py)
+
+Base.metadata.create_all(bind=engine)

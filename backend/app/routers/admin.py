@@ -1,5 +1,4 @@
 from typing import Any, Dict, List, Optional
-
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -33,7 +32,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # HELPERS (JSON safe)
 # -------------------------
 def _enum_to_value(v: Any) -> Any:
-    # Enum -> "value"
     try:
         return v.value  # type: ignore[attr-defined]
     except Exception:
@@ -41,19 +39,12 @@ def _enum_to_value(v: Any) -> Any:
 
 
 def _model_to_dict(obj: Any) -> Dict[str, Any]:
-    """
-    Converte SQLAlchemy model em dict seguro.
-    - Usa to_dict() se existir (recomendado)
-    - Caso não exista, faz fallback simples pelos columns
-    """
     if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
         d = obj.to_dict()
-        # garante enums como string
         for k, v in list(d.items()):
             d[k] = _enum_to_value(v)
         return d
 
-    # fallback (não deve ser necessário se usares SerializerMixin)
     out: Dict[str, Any] = {}
     if hasattr(obj, "__table__") and hasattr(obj.__table__, "columns"):
         for col in obj.__table__.columns:
@@ -63,10 +54,10 @@ def _model_to_dict(obj: Any) -> Dict[str, Any]:
 
 
 # -------------------------
-# USERS
+# USERS (ADMIN)
 # -------------------------
 @router.get("/users")
-def list_users(
+def admin_list_users(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_admin),
 ):
@@ -83,14 +74,14 @@ def list_users(
             "phone": getattr(u, "phone", None),
             "role": _enum_to_value(getattr(u, "role", None)),
             "created_at": getattr(u, "created_at", None),
-            "active": getattr(u, "active", None),  # pode não existir -> None
+            "active": getattr(u, "active", None),
         }
         for u in users
     ]
 
 
 @router.patch("/users/{user_id}/role")
-def set_user_role(
+def admin_set_user_role(
     user_id: str,
     payload: Dict[str, Any],
     db: Session = Depends(get_db),
@@ -100,7 +91,6 @@ def set_user_role(
     if not role_in:
         raise HTTPException(status_code=400, detail="role is required")
 
-    # ✅ Ajustado ao teu UserRole atual
     role_map = {
         "admin": UserRole.admin,
         "staff": UserRole.staff,
@@ -121,7 +111,7 @@ def set_user_role(
 
 
 # -------------------------
-# PRODUCTS
+# PRODUCTS (ADMIN)
 # -------------------------
 @router.get("/products")
 def admin_list_products(
@@ -214,7 +204,7 @@ def admin_deactivate_product(
 
 
 # -------------------------
-# PAYOUTS (Admin histórico)
+# PAYOUTS (ADMIN)
 # -------------------------
 @router.get("/payouts")
 def admin_list_payouts(
@@ -231,7 +221,6 @@ def admin_list_payouts(
     return [_model_to_dict(p) for p in payouts]
 
 
-# ✅ GERAR PAYOUTS (Admin)
 @router.post("/payouts/generate")
 def admin_generate_payouts(
     payload: Dict[str, Any],
@@ -270,7 +259,7 @@ def admin_generate_payouts(
 
 
 # -------------------------
-# ORDERS (Admin pedidos)
+# ORDERS (ADMIN)
 # -------------------------
 @router.get("/orders")
 def admin_list_orders(
