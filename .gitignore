@@ -1,5 +1,3 @@
-# =====================
-# Python
 # ==================================================
 # Python
 # ==================================================
@@ -9,8 +7,9 @@ __pycache__/
 *.pyd
 *.log
 
-# Virtual environment
+# Virtual environments
 venv/
+.venv/
 .env
 .env.*
 .envrc
@@ -25,6 +24,7 @@ venv/
 # FastAPI / Backend
 # ==================================================
 app/backend
+/backend/app/backend
 instance/
 .mypy_cache/
 .pytest_cache/
@@ -37,6 +37,9 @@ dist/
 build/
 frontend/.env
 frontend/.env.*
+frontend/node_modules/
+frontend/dist/
+frontend/build/
 
 # ==================================================
 # IDEs / Editors
@@ -52,7 +55,7 @@ frontend/.env.*
 Thumbs.db
 
 # ==================================================
-# Git
+# Git / patches
 # ==================================================
 *.orig
 *.rej
